@@ -78,22 +78,31 @@ public class GitCommitFileRepository {
         GitFileContentSnapshot after = change.getContentAfter();
         jdbcTemplate.update(
                 "INSERT INTO nsi_document_git_file_state (" +
-                        "git_link_id, file_path, last_commit_sha, content, content_sha256, content_size, deleted" +
-                        ") VALUES (?, ?, ?, ?, ?, ?, ?) " +
+                        "git_link_id, file_path, last_commit_sha, content, content_sha256, content_size, deleted, " +
+                        "last_committed_date, last_commit_row_id" +
+                        ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) " +
                         "ON CONFLICT (git_link_id, file_path) DO UPDATE SET " +
                         "last_commit_sha = EXCLUDED.last_commit_sha, " +
                         "content = EXCLUDED.content, " +
                         "content_sha256 = EXCLUDED.content_sha256, " +
                         "content_size = EXCLUDED.content_size, " +
                         "deleted = EXCLUDED.deleted, " +
-                        "updated_at = now()",
+                        "last_committed_date = EXCLUDED.last_committed_date, " +
+                        "last_commit_row_id = EXCLUDED.last_commit_row_id, " +
+                        "updated_at = now() " +
+                        "WHERE nsi_document_git_file_state.last_committed_date IS NULL " +
+                        "OR EXCLUDED.last_committed_date > nsi_document_git_file_state.last_committed_date " +
+                        "OR (EXCLUDED.last_committed_date = nsi_document_git_file_state.last_committed_date " +
+                        "AND COALESCE(EXCLUDED.last_commit_row_id, 0) >= COALESCE(nsi_document_git_file_state.last_commit_row_id, 0))",
                 change.getGitLinkId(),
                 change.getFilePath(),
                 change.getCommitSha(),
                 change.isDeletedFile() ? null : content(after),
                 change.isDeletedFile() ? null : sha256(after),
                 change.isDeletedFile() ? null : size(after),
-                change.isDeletedFile()
+                change.isDeletedFile(),
+                toTimestamp(change.getCommittedDate()),
+                change.getCommitRowId()
         );
     }
 

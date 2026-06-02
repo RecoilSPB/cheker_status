@@ -3,9 +3,16 @@ package ru.spb.reshenie.chekerstatus.web;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.dao.EmptyResultDataAccessException;
+import org.springframework.context.annotation.Import;
+import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import ru.spb.reshenie.chekerstatus.config.AppSecurityProperties;
+import ru.spb.reshenie.chekerstatus.config.SecurityConfiguration;
 import ru.spb.reshenie.chekerstatus.nsi.NsiSyncScheduler;
 import ru.spb.reshenie.chekerstatus.sync.DashboardSummary;
 import ru.spb.reshenie.chekerstatus.sync.NsiSyncRun;
@@ -28,6 +35,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(DashboardApiController.class)
+@Import(SecurityConfiguration.class)
+@EnableConfigurationProperties(AppSecurityProperties.class)
+@TestPropertySource(properties = "app.security.password=test")
 class DashboardApiControllerTest {
 
     @Autowired
@@ -40,6 +50,7 @@ class DashboardApiControllerTest {
     private NsiSyncScheduler scheduler;
 
     @Test
+    @WithMockUser
     void returnsDashboardSummary() throws Exception {
         when(repository.dashboardSummary()).thenReturn(new DashboardSummary(
                 "IDLE",
@@ -67,6 +78,7 @@ class DashboardApiControllerTest {
     }
 
     @Test
+    @WithMockUser
     void returnsFilteredSyncRunsPage() throws Exception {
         NsiSyncRun run = new NsiSyncRun(
                 1L,
@@ -115,5 +127,20 @@ class DashboardApiControllerTest {
         assertThat(captor.getValue().getRunType()).isEqualTo(SyncRunType.AUTO);
         assertThat(captor.getValue().getDictionaryIdentifier()).isEqualTo("1.2.643");
         assertThat(captor.getValue().getHasErrors()).isFalse();
+    }
+
+    @Test
+    @WithMockUser
+    void returnsNotFoundForMissingSyncRunDetails() throws Exception {
+        when(repository.findDetails(404L)).thenThrow(new EmptyResultDataAccessException(1));
+
+        mockMvc.perform(get("/api/dashboard/sync-runs/404"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void requiresAuthentication() throws Exception {
+        mockMvc.perform(get("/api/dashboard/summary"))
+                .andExpect(status().isUnauthorized());
     }
 }

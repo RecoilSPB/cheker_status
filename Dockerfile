@@ -9,6 +9,8 @@ FROM eclipse-temurin:21-jre
 WORKDIR /app
 
 COPY --from=build /workspace/target/cheker-status-0.0.1-SNAPSHOT.jar /app/cheker-status.jar
+RUN groupadd --system app && useradd --system --gid app --home-dir /app app
+USER app
 
 ENV JAVA_OPTS=""
 EXPOSE 8080

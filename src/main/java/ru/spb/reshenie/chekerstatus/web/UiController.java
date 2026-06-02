@@ -1,12 +1,15 @@
 package ru.spb.reshenie.chekerstatus.web;
 
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.dao.EmptyResultDataAccessException;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import ru.spb.reshenie.chekerstatus.nsi.NsiSyncScheduler;
 import ru.spb.reshenie.chekerstatus.sync.NsiSyncRunFilter;
@@ -15,7 +18,9 @@ import ru.spb.reshenie.chekerstatus.sync.PagedResult;
 import ru.spb.reshenie.chekerstatus.sync.SyncRunStatus;
 import ru.spb.reshenie.chekerstatus.sync.SyncRunType;
 
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 
 @Controller
 public class UiController {
@@ -45,9 +50,9 @@ public class UiController {
                             @RequestParam(name = "dictionaryIdentifier", required = false) String dictionaryIdentifier,
                             @RequestParam(name = "dictionaryVersion", required = false) String dictionaryVersion,
                             @RequestParam(name = "dateFrom", required = false)
-                            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime dateFrom,
+                            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime dateFrom,
                             @RequestParam(name = "dateTo", required = false)
-                            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime dateTo,
+                            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime dateTo,
                             @RequestParam(name = "hasErrors", required = false) Boolean hasErrors,
                             @RequestParam(name = "sort", defaultValue = "startedAt") String sort,
                             @RequestParam(name = "direction", defaultValue = "desc") String direction,
@@ -59,8 +64,8 @@ public class UiController {
         filter.setRunType(runType);
         filter.setDictionaryIdentifier(dictionaryIdentifier);
         filter.setDictionaryVersion(dictionaryVersion);
-        filter.setDateFrom(dateFrom);
-        filter.setDateTo(dateTo);
+        filter.setDateFrom(toOffsetDateTime(dateFrom));
+        filter.setDateTo(toOffsetDateTime(dateTo));
         filter.setHasErrors(hasErrors);
         filter.setSort(sort);
         filter.setDirection(direction);
@@ -77,9 +82,13 @@ public class UiController {
 
     @GetMapping("/dashboard/sync-runs/{id}")
     public String dashboardRunDetails(@PathVariable("id") long id, Model model) {
-        model.addAttribute("active", "dashboard");
-        model.addAttribute("details", syncRunRepository.findDetails(id));
-        return "sync-run";
+        try {
+            model.addAttribute("active", "dashboard");
+            model.addAttribute("details", syncRunRepository.findDetails(id));
+            return "sync-run";
+        } catch (EmptyResultDataAccessException e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Sync run not found: " + id, e);
+        }
     }
 
     @PostMapping("/dashboard/sync-runs")
@@ -127,8 +136,19 @@ public class UiController {
     public String document(@PathVariable("id") long id,
                            @RequestParam(name = "file", required = false) Long selectedFileChangeId,
                            Model model) {
-        model.addAttribute("active", "documents");
-        model.addAttribute("details", repository.documentDetails(id, selectedFileChangeId));
-        return "document";
+        try {
+            model.addAttribute("active", "documents");
+            model.addAttribute("details", repository.documentDetails(id, selectedFileChangeId));
+            return "document";
+        } catch (EmptyResultDataAccessException e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found: " + id, e);
+        }
+    }
+
+    private OffsetDateTime toOffsetDateTime(LocalDateTime value) {
+        if (value == null) {
+            return null;
+        }
+        return value.atZone(ZoneId.systemDefault()).toOffsetDateTime();
     }
 }

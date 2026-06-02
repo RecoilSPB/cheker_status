@@ -10,6 +10,29 @@ services:
       - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U checker_status -d checker_status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    container_name: cheker-status-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/checker_status
+      DB_USERNAME: checker_status
+      DB_PASSWORD: checker_status
+      APP_USERNAME: ${APP_USERNAME:-admin}
+      APP_PASSWORD: ${APP_PASSWORD:?Set APP_PASSWORD before starting the app}
+      NSI_USER_KEY: ${NSI_USER_KEY:?Set NSI_USER_KEY before starting the app}
+      GITLAB_TOKEN: ${GITLAB_TOKEN:-}
+      NSI_TRUST_ALL_SSL: ${NSI_TRUST_ALL_SSL:-false}
+    ports:
+      - "8080:8080"
 
 volumes:
   postgres-data:

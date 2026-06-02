@@ -92,7 +92,7 @@ public class UiRepository {
                         "COALESCE(NULLIF(l.document_name, ''), l.document_oid, 'Документ без названия') AS document_name, " +
                         "c.commit_id, c.short_id, c.title, c.author_name, c.committed_date, c.web_url, " +
                         "count(f.id) AS file_count, " +
-                        "EXISTS (SELECT 1 FROM nsi_document_git_commit_file fx WHERE fx.git_link_id = l.id) AS file_history_loaded " +
+                        "EXISTS (SELECT 1 FROM nsi_document_git_commit_file fx WHERE fx.commit_id = c.id) AS file_history_loaded " +
                         "FROM nsi_document_git_commit c " +
                         "JOIN nsi_document_git_link l ON l.id = c.document_git_link_id " +
                         "LEFT JOIN nsi_document_git_commit_file f ON f.commit_id = c.id " +
@@ -156,7 +156,7 @@ public class UiRepository {
         List<UiModels.FileChangeRow> fileChanges = fileChanges(documentId);
         UiModels.FileChangeRow selected = selectedFileChangeId == null
                 ? (fileChanges.isEmpty() ? null : fileChanges.get(0))
-                : fileChange(selectedFileChangeId);
+                : fileChange(documentId, selectedFileChangeId);
         return new UiModels.DocumentDetails(document, commits, fileChanges, selected);
     }
 
@@ -192,7 +192,7 @@ public class UiRepository {
         return jdbcTemplate.query(
                 "SELECT c.id, c.commit_id, c.short_id, c.title, c.author_name, c.committed_date, c.web_url, " +
                         "count(f.id) AS file_count, " +
-                        "EXISTS (SELECT 1 FROM nsi_document_git_commit_file fx WHERE fx.git_link_id = c.document_git_link_id) AS file_history_loaded " +
+                        "EXISTS (SELECT 1 FROM nsi_document_git_commit_file fx WHERE fx.commit_id = c.id) AS file_history_loaded " +
                         "FROM nsi_document_git_commit c " +
                         "LEFT JOIN nsi_document_git_commit_file f ON f.commit_id = c.id " +
                         "WHERE c.document_git_link_id = ? " +
@@ -242,12 +242,12 @@ public class UiRepository {
         );
     }
 
-    private UiModels.FileChangeRow fileChange(long fileChangeId) {
+    private UiModels.FileChangeRow fileChange(long documentId, long fileChangeId) {
         return jdbcTemplate.queryForObject(
                 "SELECT f.id, f.commit_sha, f.parent_sha, f.change_type, f.old_path, f.new_path, f.file_path, " +
                         "f.content_fetch_status, f.content_fetch_error, f.content_before_size, f.content_after_size, " +
                         "f.content_before_sha256, f.content_after_sha256, f.diff, f.committed_date " +
-                        "FROM nsi_document_git_commit_file f WHERE f.id = ?",
+                        "FROM nsi_document_git_commit_file f WHERE f.id = ? AND f.git_link_id = ?",
                 (rs, rowNum) -> fileChangeRow(rs.getLong("id"),
                         rs.getString("commit_sha"),
                         rs.getString("parent_sha"),
@@ -263,7 +263,8 @@ public class UiRepository {
                         rs.getString("content_after_sha256"),
                         rs.getString("diff"),
                         rs.getTimestamp("committed_date")),
-                fileChangeId
+                fileChangeId,
+                documentId
         );
     }
 

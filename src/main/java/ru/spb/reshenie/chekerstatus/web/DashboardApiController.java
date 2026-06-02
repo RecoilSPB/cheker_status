@@ -1,6 +1,7 @@
 package ru.spb.reshenie.chekerstatus.web;
 
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -70,7 +71,11 @@ public class DashboardApiController {
 
     @GetMapping("/sync-runs/{id}")
     public NsiSyncRunDetails syncRunDetails(@PathVariable("id") long id) {
-        return syncRunRepository.findDetails(id);
+        try {
+            return syncRunRepository.findDetails(id);
+        } catch (EmptyResultDataAccessException e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Sync run not found: " + id, e);
+        }
     }
 
     @PostMapping("/sync-runs")
@@ -83,6 +88,8 @@ public class DashboardApiController {
             return new ManualSyncResponse(runId, SyncRunStatus.RUNNING.name());
         } catch (IllegalStateException e) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage(), e);
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage(), e);
         }
     }
 

@@ -10,15 +10,20 @@ spring:
     password: ${DB_PASSWORD:checker_status}
   flyway:
     enabled: true
+app:
+  security:
+    enabled: ${APP_SECURITY_ENABLED:true}
+    username: ${APP_USERNAME:admin}
+    password: ${APP_PASSWORD:}
 
 nsi:
-  user-key: ${NSI_USER_KEY:047d529e-f097-4e5d-a255-2f77ef132d3b}
+  user-key: ${NSI_USER_KEY:}
   passport-url-template: ${NSI_PASSPORT_URL_TEMPLATE:http://nsi.rosminzdrav.ru/port/rest/passport?identifier={identifier}&userKey={userKey}}
   data-url-template: ${NSI_DATA_URL_TEMPLATE:https://nsi.rosminzdrav.ru/port/rest/data?userKey={userKey}&identifier={identifier}&page={page}&size={size}}
   page-size: ${NSI_PAGE_SIZE:100}
   poll-fixed-delay-ms: ${NSI_POLL_FIXED_DELAY_MS:3600000}
   poll-initial-delay-ms: ${NSI_POLL_INITIAL_DELAY_MS:60000}
-  trust-all-ssl: ${NSI_TRUST_ALL_SSL:true}
+  trust-all-ssl: ${NSI_TRUST_ALL_SSL:false}
   sync-on-startup: ${NSI_SYNC_ON_STARTUP:true}
   dictionaries:
     - identifier: 1.2.643.5.1.13.13.99.2.638
@@ -28,7 +33,7 @@ gitlab:
   enabled: ${GITLAB_ENABLED:true}
   require-token: ${GITLAB_REQUIRE_TOKEN:true}
   base-url: ${GITLAB_BASE_URL:https://git.minzdrav.gov.ru}
-  token: ${GITLAB_TOKEN:glpat-CQa5XKnXoynJHiJnYW2R}
+  token: ${GITLAB_TOKEN:}
   per-page: ${GITLAB_PER_PAGE:100}
   max-pages: ${GITLAB_MAX_PAGES:1000}
   max-documents-per-run: ${GITLAB_MAX_DOCUMENTS_PER_RUN:0}

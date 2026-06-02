@@ -1,6 +1,6 @@
 # cheker-status
 
-Java 8 service for tracking an NSI dictionary version and loading dictionary rows into PostgreSQL.
+Java 21 service for tracking an NSI dictionary version and loading dictionary rows into PostgreSQL.
 
 ## What is stored
 
@@ -26,7 +26,7 @@ Build and run:
 
 ```bash
 mvn clean package
-java -jar target/cheker-status-0.0.1-SNAPSHOT.jar
+APP_PASSWORD=change-me NSI_USER_KEY=<nsi-user-key> java -jar target/cheker-status-0.0.1-SNAPSHOT.jar
 ```
 
 By default the service tracks:
@@ -45,11 +45,14 @@ The service can be configured with environment variables:
 DB_URL=jdbc:postgresql://localhost:5432/checker_status
 DB_USERNAME=checker_status
 DB_PASSWORD=checker_status
-NSI_USER_KEY=047d529e-f097-4e5d-a255-2f77ef132d3b
+APP_SECURITY_ENABLED=true
+APP_USERNAME=admin
+APP_PASSWORD=
+NSI_USER_KEY=
 NSI_PAGE_SIZE=100
 NSI_POLL_FIXED_DELAY_MS=3600000
 NSI_POLL_INITIAL_DELAY_MS=60000
-NSI_TRUST_ALL_SSL=true
+NSI_TRUST_ALL_SSL=false
 NSI_SYNC_ON_STARTUP=true
 GITLAB_ENABLED=true
 GITLAB_REQUIRE_TOKEN=true

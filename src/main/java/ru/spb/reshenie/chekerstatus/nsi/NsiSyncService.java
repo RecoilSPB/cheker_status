@@ -198,8 +198,8 @@ public class NsiSyncService {
                     passport.getDictionaryKey(), passport.getRowsCount(), records.size());
         }
         if (total != records.size()) {
-            log.warn("NSI total mismatch: oid={}, apiTotal={}, loadedRows={}",
-                    passport.getDictionaryKey(), total, records.size());
+            throw new NsiClientException("NSI total mismatch: oid=" + passport.getDictionaryKey()
+                    + ", apiTotal=" + total + ", loadedRows=" + records.size());
         }
 
         return records;
