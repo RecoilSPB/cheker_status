@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Документы - NSI Git Monitor</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<div class="app">
+    <aside class="sidebar">
+        <div class="brand"><span class="brand-mark">N</span><span>NSI Git Monitor</span></div>
+        <nav class="nav">
+            <a th:classappend="${active == 'dashboard'} ? 'active' : ''" th:href="@{/dashboard}">Дашборд</a>
+            <a th:classappend="${active == 'documents'} ? 'active' : ''" th:href="@{/documents}">Документы</a>
+            <a th:classappend="${active == 'commits'} ? 'active' : ''" th:href="@{/commits}">Коммиты</a>
+            <a th:classappend="${active == 'fileChanges'} ? 'active' : ''" th:href="@{/file-changes}">История файлов</a>
+            <a th:href="@{/documents(status='ERROR')}">Ошибки</a>
+        </nav>
+    </aside>
+    <main class="main">
+        <div class="topbar">
+            <div>
+                <h1 class="page-title">Документы</h1>
+                <div class="page-subtitle">Поиск по названию, OID или GitLab project</div>
+            </div>
+            <form class="search" th:action="@{/documents}" method="get">
+                <input type="search" name="q" th:value="${query}" placeholder="Название документа, OID, project">
+                <input type="hidden" name="status" th:if="${status != ''}" th:value="${status}">
+                <button class="button" type="submit">Найти</button>
+            </form>
+        </div>
+
+        <section class="stats">
+            <div class="stat"><div class="stat-label">Документы</div><div class="stat-value" th:text="${stats.documents}">0</div></div>
+            <div class="stat"><div class="stat-label">Коммиты</div><div class="stat-value" th:text="${stats.commits}">0</div></div>
+            <div class="stat"><div class="stat-label">Изменения файлов</div><div class="stat-value" th:text="${stats.fileChanges}">0</div></div>
+            <div class="stat"><div class="stat-label">Ошибки</div><div class="stat-value" th:text="${stats.errors}">0</div></div>
+            <div class="stat"><div class="stat-label">Синхронизация</div><div class="stat-value" style="font-size:14px" th:text="${stats.lastSyncAt ?: 'нет данных'}">нет данных</div></div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-header">
+                <div class="panel-title" th:text="${status == 'ERROR'} ? 'Документы с ошибками' : 'Список документов'">Список документов</div>
+                <div class="muted" th:text="${#lists.size(documents)} + ' строк'">0 строк</div>
+            </div>
+            <table class="table">
+                <thead>
+                <tr>
+                    <th>Документ</th>
+                    <th>Git project</th>
+                    <th>Ref</th>
+                    <th>Коммиты</th>
+                    <th>Файлы</th>
+                    <th>Статус</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="doc : ${documents}">
+                    <td>
+                        <div class="document-name" th:text="${doc.documentName}">Название документа</div>
+                        <div class="technical" th:text="'OID ' + ${doc.documentOid}">OID</div>
+                    </td>
+                    <td class="mono" th:text="${doc.projectPath}">project</td>
+                    <td class="mono" th:text="${doc.treeRef}">ref</td>
+                    <td th:text="${doc.commitCount}">0</td>
+                    <td>
+                        <span th:text="${doc.fileChangeCount}">0</span>
+                        <span class="muted" th:if="${doc.failedFileCount > 0}" th:text="' / ошибок ' + ${doc.failedFileCount}"></span>
+                    </td>
+                    <td>
+                        <span class="status" th:classappend="${doc.statusCss}" th:text="${doc.displayStatus}">PENDING</span>
+                    </td>
+                    <td><a class="button secondary" th:href="@{/documents/{id}(id=${doc.id})}">Открыть</a></td>
+                </tr>
+                </tbody>
+            </table>
+            <div class="empty" th:if="${#lists.isEmpty(documents)}">Документы не найдены</div>
+        </section>
+    </main>
+</div>
+</body>
+</html>

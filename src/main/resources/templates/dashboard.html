@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Дашборд - NSI Git Monitor</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<div class="app">
+    <aside class="sidebar">
+        <div class="brand"><span class="brand-mark">N</span><span>NSI Git Monitor</span></div>
+        <nav class="nav">
+            <a th:classappend="${active == 'dashboard'} ? 'active' : ''" th:href="@{/dashboard}">Дашборд</a>
+            <a th:classappend="${active == 'documents'} ? 'active' : ''" th:href="@{/documents}">Документы</a>
+            <a th:classappend="${active == 'commits'} ? 'active' : ''" th:href="@{/commits}">Коммиты</a>
+            <a th:classappend="${active == 'fileChanges'} ? 'active' : ''" th:href="@{/file-changes}">История файлов</a>
+            <a th:href="@{/documents(status='ERROR')}">Ошибки</a>
+        </nav>
+    </aside>
+    <main class="main">
+        <div class="topbar">
+            <div>
+                <h1 class="page-title">Дашборд</h1>
+                <div class="page-subtitle">История запусков синхронизации НСИ и GitLab-истории</div>
+            </div>
+            <div class="actions">
+                <a class="button secondary" th:href="@{/dashboard}">Обновить</a>
+                <form th:action="@{/dashboard/sync-runs}" method="post">
+                    <input type="hidden" name="dictionaryIdentifier" th:value="${summary.dictionaryIdentifier}">
+                    <button class="button" type="submit">Запустить синхронизацию</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="notice" th:if="${message}" th:text="${message}">message</div>
+
+        <section class="stats dashboard-stats">
+            <div class="stat">
+                <div class="stat-label">Текущий статус</div>
+                <div class="stat-value" th:text="${summary.currentStatus == 'RUNNING' ? 'Выполняется' : (summary.currentStatus == 'FAILED' ? 'Ошибка' : 'Ожидание')}">Ожидание</div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">Последний запуск</div>
+                <div class="stat-value stat-small" th:text="${summary.lastRun != null ? summary.lastRun.startedAt : 'нет данных'}">нет данных</div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">Последний успешный</div>
+                <div class="stat-value stat-small" th:text="${summary.lastSuccessfulRun != null ? summary.lastSuccessfulRun.startedAt : 'нет данных'}">нет данных</div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">Версия НСИ</div>
+                <div class="stat-value stat-small" th:text="${summary.dictionaryVersion ?: 'нет данных'}">нет данных</div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">Записи НСИ</div>
+                <div class="stat-value" th:text="${summary.totalRecords}">0</div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">GitLab-ссылки</div>
+                <div class="stat-value" th:text="${summary.totalGitLinks}">0</div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">Ссылки с ошибками</div>
+                <div class="stat-value" th:text="${summary.gitLinksWithErrors}">0</div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">Коммиты</div>
+                <div class="stat-value" th:text="${summary.totalCommits}">0</div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">Файлы истории</div>
+                <div class="stat-value" th:text="${summary.totalFiles}">0</div>
+            </div>
+        </section>
+
+        <section class="panel filter-panel">
+            <form class="filters" th:action="@{/dashboard}" method="get">
+                <label>
+                    <span>С</span>
+                    <input type="datetime-local" name="dateFrom">
+                </label>
+                <label>
+                    <span>По</span>
+                    <input type="datetime-local" name="dateTo">
+                </label>
+                <label>
+                    <span>Статус</span>
+                    <select name="status">
+                        <option value="">Все</option>
+                        <option th:each="item : ${statuses}"
+                                th:value="${item}"
+                                th:text="${item.name() == 'RUNNING' ? 'Выполняется' : (item.name() == 'SUCCESS' ? 'Успешно' : (item.name() == 'FAILED' ? 'Ошибка' : 'Частично выполнено'))}"
+                                th:selected="${filter.status == item}">SUCCESS</option>
+                    </select>
+                </label>
+                <label>
+                    <span>Тип</span>
+                    <select name="runType">
+                        <option value="">Все</option>
+                        <option th:each="item : ${runTypes}"
+                                th:value="${item}"
+                                th:text="${item.name() == 'AUTO' ? 'Автоматический' : (item.name() == 'MANUAL' ? 'Ручной' : (item.name() == 'WEBHOOK' ? 'Webhook' : 'Повтор'))}"
+                                th:selected="${filter.runType == item}">AUTO</option>
+                    </select>
+                </label>
+                <label>
+                    <span>Идентификатор</span>
+                    <input type="text" name="dictionaryIdentifier" th:value="${filter.dictionaryIdentifier}">
+                </label>
+                <label>
+                    <span>Версия</span>
+                    <input type="text" name="dictionaryVersion" th:value="${filter.dictionaryVersion}">
+                </label>
+                <label>
+                    <span>Ошибки</span>
+                    <select name="hasErrors">
+                        <option value="">Все</option>
+                        <option value="true" th:selected="${filter.hasErrors == true}">Есть</option>
+                        <option value="false" th:selected="${filter.hasErrors == false}">Нет</option>
+                    </select>
+                </label>
+                <label>
+                    <span>Сортировка</span>
+                    <select name="sort">
+                        <option value="startedAt" th:selected="${filter.sort == 'startedAt'}">Дата старта</option>
+                        <option value="status" th:selected="${filter.sort == 'status'}">Статус</option>
+                        <option value="duration" th:selected="${filter.sort == 'duration'}">Длительность</option>
+                        <option value="errorCount" th:selected="${filter.sort == 'errorCount'}">Ошибки</option>
+                    </select>
+                </label>
+                <label>
+                    <span>Порядок</span>
+                    <select name="direction">
+                        <option value="desc" th:selected="${filter.direction == 'desc'}">Новые сверху</option>
+                        <option value="asc" th:selected="${filter.direction == 'asc'}">Старые сверху</option>
+                    </select>
+                </label>
+                <input type="hidden" name="page" value="0">
+                <input type="hidden" name="size" th:value="${filter.size}">
+                <button class="button" type="submit">Применить</button>
+            </form>
+        </section>
+
+        <section class="panel">
+            <div class="panel-header">
+                <div class="panel-title">История запусков синхронизации</div>
+                <div class="muted">
+                    <span th:text="${runs.totalElements}">0</span> записей,
+                    страница <span th:text="${runs.page + 1}">1</span> из <span th:text="${runs.totalPages > 0 ? runs.totalPages : 1}">1</span>
+                </div>
+            </div>
+            <div class="table-scroll">
+                <table class="table">
+                    <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Начало</th>
+                        <th>Окончание</th>
+                        <th>Длительность</th>
+                        <th>Тип</th>
+                        <th>Статус</th>
+                        <th>Идентификатор</th>
+                        <th>Версия</th>
+                        <th>НСИ</th>
+                        <th>Новые</th>
+                        <th>Измененные</th>
+                        <th>Деакт.</th>
+                        <th>Git links</th>
+                        <th>Проекты</th>
+                        <th>Коммиты</th>
+                        <th>Файлы</th>
+                        <th>Ошибки</th>
+                        <th>Текст ошибки</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="run : ${runs.content}" th:classappend="${run.errorCount > 0 or run.status.name() == 'FAILED'} ? 'row-error' : ''">
+                        <td><a class="mono" th:href="@{/dashboard/sync-runs/{id}(id=${run.id})}" th:text="${run.id}">1</a></td>
+                        <td class="muted" th:text="${run.startedAt}">date</td>
+                        <td class="muted" th:text="${run.finishedAt ?: ''}">date</td>
+                        <td th:text="${run.durationMs != null ? run.durationMs + ' мс' : ''}">0</td>
+                        <td th:text="${run.displayRunType}">Авто</td>
+                        <td><span class="status" th:classappend="${run.statusCss}" th:text="${run.displayStatus}">Успешно</span></td>
+                        <td class="mono" th:text="${run.dictionaryIdentifier ?: ''}">identifier</td>
+                        <td th:text="${run.dictionaryVersion ?: ''}">version</td>
+                        <td th:text="${run.nsiRowsTotal}">0</td>
+                        <td th:text="${run.nsiRowsInserted}">0</td>
+                        <td th:text="${run.nsiRowsUpdated}">0</td>
+                        <td th:text="${run.nsiRowsDeactivated}">0</td>
+                        <td th:text="${run.gitLinksFound}">0</td>
+                        <td th:text="${run.gitProjectsProcessed}">0</td>
+                        <td th:text="${run.gitCommitsProcessed}">0</td>
+                        <td th:text="${run.gitFilesProcessed}">0</td>
+                        <td th:text="${run.errorCount}">0</td>
+                        <td class="muted" th:text="${run.errorMessage ?: ''}">error</td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="empty" th:if="${#lists.isEmpty(runs.content)}">История запусков пока пуста</div>
+            <div class="pagination" th:if="${runs.totalPages > 1}">
+                <a class="button secondary" th:if="${runs.hasPrevious()}" th:href="@{/dashboard(page=${runs.page - 1},size=${runs.size},status=${filter.status},runType=${filter.runType},dictionaryIdentifier=${filter.dictionaryIdentifier},dictionaryVersion=${filter.dictionaryVersion},hasErrors=${filter.hasErrors},sort=${filter.sort},direction=${filter.direction})}">Назад</a>
+                <a class="button secondary" th:if="${runs.hasNext()}" th:href="@{/dashboard(page=${runs.page + 1},size=${runs.size},status=${filter.status},runType=${filter.runType},dictionaryIdentifier=${filter.dictionaryIdentifier},dictionaryVersion=${filter.dictionaryVersion},hasErrors=${filter.hasErrors},sort=${filter.sort},direction=${filter.direction})}">Вперед</a>
+            </div>
+        </section>
+    </main>
+</div>
+</body>
+</html>

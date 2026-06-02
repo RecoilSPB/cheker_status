@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Коммиты - NSI Git Monitor</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<div class="app">
+    <aside class="sidebar">
+        <div class="brand"><span class="brand-mark">N</span><span>NSI Git Monitor</span></div>
+        <nav class="nav">
+            <a th:classappend="${active == 'dashboard'} ? 'active' : ''" th:href="@{/dashboard}">Дашборд</a>
+            <a th:classappend="${active == 'documents'} ? 'active' : ''" th:href="@{/documents}">Документы</a>
+            <a th:classappend="${active == 'commits'} ? 'active' : ''" th:href="@{/commits}">Коммиты</a>
+            <a th:classappend="${active == 'fileChanges'} ? 'active' : ''" th:href="@{/file-changes}">История файлов</a>
+            <a th:href="@{/documents(status='ERROR')}">Ошибки</a>
+        </nav>
+    </aside>
+    <main class="main">
+        <div class="topbar">
+            <div>
+                <h1 class="page-title">Коммиты</h1>
+                <div class="page-subtitle">Последние коммиты GitLab, связанные с документами справочника</div>
+            </div>
+            <a class="button secondary" th:href="@{/documents}">К документам</a>
+        </div>
+
+        <section class="stats">
+            <div class="stat"><div class="stat-label">Документы</div><div class="stat-value" th:text="${stats.documents}">0</div></div>
+            <div class="stat"><div class="stat-label">Коммиты</div><div class="stat-value" th:text="${stats.commits}">0</div></div>
+            <div class="stat"><div class="stat-label">Изменения файлов</div><div class="stat-value" th:text="${stats.fileChanges}">0</div></div>
+            <div class="stat"><div class="stat-label">Ошибки</div><div class="stat-value" th:text="${stats.errors}">0</div></div>
+            <div class="stat"><div class="stat-label">Синхронизация</div><div class="stat-value" style="font-size:14px" th:text="${stats.lastSyncAt ?: 'нет данных'}">нет данных</div></div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-header">
+                <div class="panel-title">Последние коммиты</div>
+                <div class="muted" th:text="${#lists.size(commits)} + ' строк'">0 строк</div>
+            </div>
+            <table class="table">
+                <thead>
+                <tr>
+                    <th>Документ</th>
+                    <th>Commit</th>
+                    <th>Автор</th>
+                    <th>Файлы</th>
+                    <th>Дата</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="commit : ${commits}">
+                    <td>
+                        <a th:href="@{/documents/{id}(id=${commit.documentId})}">
+                            <div class="document-name" th:text="${commit.documentName}">Название документа</div>
+                        </a>
+                    </td>
+                    <td>
+                        <div class="document-name" th:text="${commit.title ?: commit.shortSha}">commit title</div>
+                        <div class="technical" th:text="${commit.shortSha}">sha</div>
+                    </td>
+                    <td th:text="${commit.authorName ?: ''}">author</td>
+                    <td>
+                        <span th:if="${commit.fileHistoryLoaded}" th:text="${commit.fileCount}">0</span>
+                        <span class="muted" th:unless="${commit.fileHistoryLoaded}">не загружено</span>
+                    </td>
+                    <td class="muted" th:text="${commit.committedDate ?: ''}">date</td>
+                    <td>
+                        <a class="button secondary" th:if="${commit.webUrl != null}" th:href="${commit.webUrl}" target="_blank" rel="noreferrer">GitLab</a>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+            <div class="empty" th:if="${#lists.isEmpty(commits)}">Коммиты пока не загружены</div>
+        </section>
+    </main>
+</div>
+</body>
+</html>

@@ -1,6 +1,9 @@
 spring:
   application:
     name: cheker-status
+  threads:
+    virtual:
+      enabled: true
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/checker_status}
     username: ${DB_USERNAME:checker_status}
@@ -25,11 +28,23 @@ gitlab:
   enabled: ${GITLAB_ENABLED:true}
   require-token: ${GITLAB_REQUIRE_TOKEN:true}
   base-url: ${GITLAB_BASE_URL:https://git.minzdrav.gov.ru}
-  token: ${GITLAB_TOKEN:}
+  token: ${GITLAB_TOKEN:glpat-CQa5XKnXoynJHiJnYW2R}
   per-page: ${GITLAB_PER_PAGE:100}
   max-pages: ${GITLAB_MAX_PAGES:1000}
   max-documents-per-run: ${GITLAB_MAX_DOCUMENTS_PER_RUN:0}
+  file-history-enabled: ${GITLAB_FILE_HISTORY_ENABLED:true}
+  fetch-file-content: ${GITLAB_FETCH_FILE_CONTENT:true}
+  max-files-per-commit: ${GITLAB_MAX_FILES_PER_COMMIT:1000}
+  max-file-size-bytes: ${GITLAB_MAX_FILE_SIZE_BYTES:1048576}
+  retry-count: ${GITLAB_RETRY_COUNT:3}
+  retry-delay-ms: ${GITLAB_RETRY_DELAY_MS:1000}
+  virtual-threads-enabled: ${GITLAB_VIRTUAL_THREADS_ENABLED:true}
+  max-concurrent-projects: ${GITLAB_MAX_CONCURRENT_PROJECTS:8}
+  max-concurrent-commits: ${GITLAB_MAX_CONCURRENT_COMMITS:16}
+  max-concurrent-files: ${GITLAB_MAX_CONCURRENT_FILES:32}
+  max-concurrent-db-writes: ${GITLAB_MAX_CONCURRENT_DB_WRITES:8}
+  request-timeout-ms: ${GITLAB_REQUEST_TIMEOUT_MS:30000}
 
 logging:
   level:
-    ru.spb.reshenie.chekerstatus: INFO
+    ru.spb.reshenie.chekerstatus: TRACE

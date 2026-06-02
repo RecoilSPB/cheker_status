@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import ru.spb.reshenie.chekerstatus.config.GitLabProperties;
+import ru.spb.reshenie.chekerstatus.sync.SyncErrorStage;
 
 import java.util.List;
 
@@ -14,64 +15,68 @@ public class GitCommitTrackingService {
     private static final Logger log = LoggerFactory.getLogger(GitCommitTrackingService.class);
 
     private final GitLabProperties properties;
-    private final GitLabClient gitLabClient;
     private final GitTrackingRepository repository;
+    private final GitLabVirtualThreadSyncExecutor syncExecutor;
 
     public GitCommitTrackingService(GitLabProperties properties,
-                                    GitLabClient gitLabClient,
-                                    GitTrackingRepository repository) {
+                                    GitTrackingRepository repository,
+                                    GitLabVirtualThreadSyncExecutor syncExecutor) {
         this.properties = properties;
-        this.gitLabClient = gitLabClient;
         this.repository = repository;
+        this.syncExecutor = syncExecutor;
     }
 
-    public void synchronizeDictionaryDocuments(long dictionaryId) {
+    public GitCommitTrackingResult synchronizeDictionaryDocuments(long dictionaryId) {
+        GitCommitTrackingResult result = new GitCommitTrackingResult();
         if (!properties.isEnabled()) {
             log.info("GitLab commit tracking is disabled");
-            return;
+            return result;
         }
 
         List<DocumentGitLink> documents = repository.refreshAndFindActiveLinks(dictionaryId);
+        result.setLinksFound(documents.size());
         if (documents.isEmpty()) {
             log.info("No active GitLab document links found: dictionaryId={}", dictionaryId);
-            return;
+            return result;
         }
 
         if (properties.isRequireToken() && !StringUtils.hasText(properties.getToken())) {
             String error = "GitLab token is not configured";
             for (DocumentGitLink document : documents) {
                 repository.markSyncError(document.getId(), error);
+                result.addError(new GitSyncError(
+                        SyncErrorStage.GITLAB_COMMITS,
+                        document.getId(),
+                        document.getProjectPath(),
+                        null,
+                        null,
+                        error,
+                        null
+                ));
             }
             log.warn("{}: dictionaryId={}, documents={}", error, dictionaryId, documents.size());
-            return;
+            return result;
         }
 
-        int success = 0;
-        int failed = 0;
-        int commits = 0;
-        int processed = 0;
+        List<DocumentGitLink> documentsToProcess = documents;
         int limit = properties.getMaxDocumentsPerRun();
-        for (DocumentGitLink document : documents) {
-            if (limit > 0 && processed >= limit) {
-                break;
-            }
-            processed++;
-            try {
-                List<GitLabCommit> documentCommits = gitLabClient.fetchAllCommits(document);
-                repository.saveCommits(document.getId(), documentCommits);
-                repository.markSyncSuccess(document.getId());
-                success++;
-                commits += documentCommits.size();
-            } catch (RuntimeException e) {
-                repository.markSyncError(document.getId(), e.getMessage());
-                failed++;
-                log.warn("Cannot synchronize GitLab commits: documentOid={}, project={}, ref={}, error={}",
-                        document.getDocumentOid(), document.getProjectPath(), document.getTreeRef(), e.getMessage());
-                log.debug("GitLab synchronization error details", e);
-            }
+        if (limit > 0 && documents.size() > limit) {
+            documentsToProcess = documents.subList(0, limit);
         }
 
-        log.info("GitLab commit tracking finished: dictionaryId={}, documents={}, processed={}, success={}, failed={}, commits={}",
-                dictionaryId, documents.size(), processed, success, failed, commits);
+        GitCommitTrackingResult processedResult = properties.isVirtualThreadsEnabled()
+                ? syncExecutor.synchronizeDocuments(documentsToProcess)
+                : syncExecutor.synchronizeDocumentsSequentially(documentsToProcess);
+        result.merge(processedResult);
+
+        log.info("GitLab commit tracking finished: dictionaryId={}, documents={}, processed={}, errors={}, commits={}, files={}",
+                dictionaryId,
+                documents.size(),
+                result.getProjectsProcessed(),
+                result.getErrorCount(),
+                result.getCommitsProcessed(),
+                result.getFilesProcessed());
+        return result;
     }
+
 }
