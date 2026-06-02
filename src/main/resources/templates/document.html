@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${details.document.documentName} + ' - NSI Git Monitor'">Документ</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<div class="app">
+    <aside class="sidebar">
+        <div class="brand"><span class="brand-mark">N</span><span>NSI Git Monitor</span></div>
+        <nav class="nav">
+            <a th:classappend="${active == 'dashboard'} ? 'active' : ''" th:href="@{/dashboard}">Дашборд</a>
+            <a th:classappend="${active == 'documents'} ? 'active' : ''" th:href="@{/documents}">Документы</a>
+            <a th:classappend="${active == 'commits'} ? 'active' : ''" th:href="@{/commits}">Коммиты</a>
+            <a th:classappend="${active == 'fileChanges'} ? 'active' : ''" th:href="@{/file-changes}">История файлов</a>
+            <a th:href="@{/documents(status='ERROR')}">Ошибки</a>
+        </nav>
+    </aside>
+    <main class="main">
+        <div class="topbar">
+            <a class="button secondary" th:href="@{/documents}">К списку</a>
+        </div>
+
+        <section class="document-hero">
+            <div>
+                <h1 class="page-title" th:text="${details.document.documentName}">Название документа</h1>
+                <div class="technical" th:text="'OID ' + ${details.document.documentOid}">OID</div>
+                <div class="muted mono" th:text="${details.document.projectPath} + ' / ' + ${details.document.treeRef}">project/ref</div>
+            </div>
+            <div>
+                <span class="status" th:classappend="${details.document.statusCss}" th:text="${details.document.displayStatus}">PENDING</span>
+            </div>
+        </section>
+
+        <section class="detail-grid">
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">Коммиты документа</div>
+                    <div class="muted">
+                        <span th:text="${details.document.commitCount}">0</span> коммитов
+                    </div>
+                </div>
+                <table class="table">
+                    <thead>
+                    <tr>
+                        <th>Commit</th>
+                        <th>Автор</th>
+                        <th>Файлы</th>
+                        <th>Дата</th>
+                        <th></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="commit : ${details.commits}">
+                        <td>
+                            <div class="document-name" th:text="${commit.title ?: commit.shortSha}">commit title</div>
+                            <div class="technical" th:text="${commit.shortSha}">sha</div>
+                        </td>
+                        <td th:text="${commit.authorName ?: ''}">author</td>
+                        <td>
+                            <span th:if="${commit.fileHistoryLoaded}" th:text="${commit.fileCount}">0</span>
+                            <span class="muted" th:unless="${commit.fileHistoryLoaded}">не загружено</span>
+                        </td>
+                        <td class="muted" th:text="${commit.committedDate ?: ''}">date</td>
+                        <td>
+                            <a class="button secondary" th:if="${commit.webUrl != null}" th:href="${commit.webUrl}" target="_blank" rel="noreferrer">GitLab</a>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+                <div class="empty" th:if="${#lists.isEmpty(details.commits)}">Коммиты пока не загружены</div>
+
+                <div class="section-header">
+                    <div class="panel-title">История файлов</div>
+                    <div class="muted">
+                        <span th:text="${details.document.fileChangeCount}">0</span> изменений
+                    </div>
+                </div>
+                <table class="table">
+                    <thead>
+                    <tr>
+                        <th>Файл</th>
+                        <th>Тип</th>
+                        <th>Commit</th>
+                        <th>Content</th>
+                        <th>Дата</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="file : ${details.fileChanges}">
+                        <td>
+                            <a th:href="@{/documents/{id}(id=${details.document.id},file=${file.id})}">
+                                <div class="document-name" th:text="${file.filePath}">path</div>
+                                <div class="technical" th:text="${file.oldPath} + ' -> ' + ${file.newPath}">old -> new</div>
+                            </a>
+                        </td>
+                        <td><span class="change" th:classappend="${file.changeTypeCss}" th:text="${file.changeType}">modified</span></td>
+                        <td class="mono" th:text="${file.shortSha}">sha</td>
+                        <td><span class="status" th:classappend="${file.statusCss}" th:text="${file.contentFetchStatus}">SUCCESS</span></td>
+                        <td class="muted" th:text="${file.committedDate ?: ''}">date</td>
+                    </tr>
+                    </tbody>
+                </table>
+                <div class="empty" th:if="${#lists.isEmpty(details.fileChanges)}">История файлов не загружена. Проверьте GitLab token и запустите синхронизацию.</div>
+            </div>
+
+            <aside class="panel side-panel">
+                <div class="panel-header">
+                    <div>
+                        <div class="panel-title">Детали изменения</div>
+                        <div class="muted" th:if="${details.selectedFileChange != null}" th:text="${details.selectedFileChange.filePath}">file</div>
+                    </div>
+                </div>
+                <div th:if="${details.selectedFileChange != null}">
+                    <div class="meta-list">
+                        <div>
+                            <div class="meta-label">Commit SHA</div>
+                            <div class="meta-value mono" th:text="${details.selectedFileChange.commitSha}">sha</div>
+                        </div>
+                        <div>
+                            <div class="meta-label">Parent SHA</div>
+                            <div class="meta-value mono" th:text="${details.selectedFileChange.parentSha ?: 'нет'}">parent</div>
+                        </div>
+                        <div>
+                            <div class="meta-label">Путь до изменения</div>
+                            <div class="meta-value mono" th:text="${details.selectedFileChange.oldPath}">old</div>
+                        </div>
+                        <div>
+                            <div class="meta-label">Путь после изменения</div>
+                            <div class="meta-value mono" th:text="${details.selectedFileChange.newPath}">new</div>
+                        </div>
+                        <div>
+                            <div class="meta-label">Размер before / after</div>
+                            <div class="meta-value">
+                                <span th:text="${details.selectedFileChange.contentBeforeSize ?: '-'}">-</span>
+                                <span> / </span>
+                                <span th:text="${details.selectedFileChange.contentAfterSize ?: '-'}">-</span>
+                            </div>
+                        </div>
+                        <div th:if="${details.selectedFileChange.contentFetchError != null}">
+                            <div class="meta-label">Ошибка загрузки content</div>
+                            <div class="meta-value" th:text="${details.selectedFileChange.contentFetchError}">error</div>
+                        </div>
+                    </div>
+                    <pre class="diff" th:text="${details.selectedFileChange.diff ?: 'Diff не сохранен'}">diff</pre>
+                </div>
+                <div class="empty" th:if="${details.selectedFileChange == null and #lists.isEmpty(details.fileChanges)}">История файлов не загружена</div>
+                <div class="empty" th:if="${details.selectedFileChange == null and !#lists.isEmpty(details.fileChanges)}">Выберите изменение файла</div>
+            </aside>
+        </section>
+    </main>
+</div>
+</body>
+</html>

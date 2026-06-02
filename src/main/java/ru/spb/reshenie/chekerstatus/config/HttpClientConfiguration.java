@@ -25,12 +25,13 @@ public class HttpClientConfiguration {
     private static final Logger log = LoggerFactory.getLogger(HttpClientConfiguration.class);
 
     @Bean
-    public RestTemplate restTemplate(NsiProperties properties) {
-        SimpleClientHttpRequestFactory requestFactory = properties.isTrustAllSsl()
+    public RestTemplate restTemplate(NsiProperties nsiProperties, GitLabProperties gitLabProperties) {
+        SimpleClientHttpRequestFactory requestFactory = nsiProperties.isTrustAllSsl()
                 ? trustAllSslRequestFactory()
                 : new SimpleClientHttpRequestFactory();
-        requestFactory.setConnectTimeout(15_000);
-        requestFactory.setReadTimeout(60_000);
+        int requestTimeoutMs = Math.max(1_000, gitLabProperties.getRequestTimeoutMs());
+        requestFactory.setConnectTimeout(Math.min(15_000, requestTimeoutMs));
+        requestFactory.setReadTimeout(requestTimeoutMs);
         return new RestTemplate(requestFactory);
     }
 

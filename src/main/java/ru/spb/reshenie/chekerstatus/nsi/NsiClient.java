@@ -40,18 +40,24 @@ public class NsiClient {
         int total = JsonNodes.intValue(root, "total", 0);
         List<RecordPayload> records = new ArrayList<RecordPayload>();
         JsonNode list = root.path("list");
-        if (list.isArray()) {
-            int offset = (page - 1) * size;
-            int index = 0;
-            for (JsonNode row : list) {
-                records.add(RecordPayload.fromApiRow(
-                        objectMapper,
-                        offset + index + 1,
-                        row,
-                        passport.getPrimaryKeys()
-                ));
-                index++;
+        if (!list.isArray()) {
+            if (total > 0) {
+                throw new NsiClientException("NSI data page " + page + " has no list array: identifier="
+                        + passport.getRequestedIdentifier() + ", total=" + total);
             }
+            return new DataPage(page, size, total, records);
+        }
+
+        int offset = (page - 1) * size;
+        int index = 0;
+        for (JsonNode row : list) {
+            records.add(RecordPayload.fromApiRow(
+                    objectMapper,
+                    offset + index + 1,
+                    row,
+                    passport.getPrimaryKeys()
+            ));
+            index++;
         }
 
         return new DataPage(page, size, total, records);

@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>История файлов - NSI Git Monitor</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<div class="app">
+    <aside class="sidebar">
+        <div class="brand"><span class="brand-mark">N</span><span>NSI Git Monitor</span></div>
+        <nav class="nav">
+            <a th:classappend="${active == 'dashboard'} ? 'active' : ''" th:href="@{/dashboard}">Дашборд</a>
+            <a th:classappend="${active == 'documents'} ? 'active' : ''" th:href="@{/documents}">Документы</a>
+            <a th:classappend="${active == 'commits'} ? 'active' : ''" th:href="@{/commits}">Коммиты</a>
+            <a th:classappend="${active == 'fileChanges'} ? 'active' : ''" th:href="@{/file-changes}">История файлов</a>
+            <a th:href="@{/documents(status='ERROR')}">Ошибки</a>
+        </nav>
+    </aside>
+    <main class="main">
+        <div class="topbar">
+            <div>
+                <h1 class="page-title">История файлов</h1>
+                <div class="page-subtitle">Изменения файлов по документам: тип изменения, commit и статус загрузки content</div>
+            </div>
+            <a class="button secondary" th:href="@{/documents}">К документам</a>
+        </div>
+
+        <section class="stats">
+            <div class="stat"><div class="stat-label">Документы</div><div class="stat-value" th:text="${stats.documents}">0</div></div>
+            <div class="stat"><div class="stat-label">Коммиты</div><div class="stat-value" th:text="${stats.commits}">0</div></div>
+            <div class="stat"><div class="stat-label">Изменения файлов</div><div class="stat-value" th:text="${stats.fileChanges}">0</div></div>
+            <div class="stat"><div class="stat-label">Ошибки</div><div class="stat-value" th:text="${stats.errors}">0</div></div>
+            <div class="stat"><div class="stat-label">Синхронизация</div><div class="stat-value" style="font-size:14px" th:text="${stats.lastSyncAt ?: 'нет данных'}">нет данных</div></div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-header">
+                <div class="panel-title">Последние изменения файлов</div>
+                <div class="muted" th:text="${#lists.size(fileChanges)} + ' строк'">0 строк</div>
+            </div>
+            <table class="table">
+                <thead>
+                <tr>
+                    <th>Документ</th>
+                    <th>Файл</th>
+                    <th>Тип</th>
+                    <th>Commit</th>
+                    <th>Content</th>
+                    <th>Дата</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="file : ${fileChanges}">
+                    <td>
+                        <a th:href="@{/documents/{id}(id=${file.documentId},file=${file.id})}">
+                            <div class="document-name" th:text="${file.documentName}">Название документа</div>
+                        </a>
+                    </td>
+                    <td>
+                        <a th:href="@{/documents/{id}(id=${file.documentId},file=${file.id})}">
+                            <div class="document-name" th:text="${file.filePath}">path</div>
+                            <div class="technical" th:text="${file.oldPath} + ' -> ' + ${file.newPath}">old -> new</div>
+                        </a>
+                    </td>
+                    <td><span class="change" th:classappend="${file.changeTypeCss}" th:text="${file.changeType}">modified</span></td>
+                    <td class="mono" th:text="${file.shortSha}">sha</td>
+                    <td><span class="status" th:classappend="${file.statusCss}" th:text="${file.contentFetchStatus}">SUCCESS</span></td>
+                    <td class="muted" th:text="${file.committedDate ?: ''}">date</td>
+                </tr>
+                </tbody>
+            </table>
+            <div class="empty" th:if="${#lists.isEmpty(fileChanges)}">История файлов пока не загружена</div>
+        </section>
+    </main>
+</div>
+</body>
+</html>

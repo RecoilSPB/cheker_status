@@ -8,7 +8,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class NsiPersistenceService {
@@ -31,14 +33,23 @@ public class NsiPersistenceService {
     }
 
     @Transactional
-    public void saveLoadedRecords(long dictionaryId,
-                                  long versionId,
-                                  List<RecordPayload> records) {
+    public NsiRecordSaveResult saveLoadedRecords(long dictionaryId,
+                                                 long versionId,
+                                                 List<RecordPayload> records) {
+        Map<String, String> existingHashes = findExistingHashes(dictionaryId, records);
+        int inserted = 0;
+        int updated = 0;
         for (RecordPayload record : records) {
+            String existingHash = existingHashes.get(record.getRecordKey());
+            if (existingHash == null) {
+                inserted++;
+            } else if (!existingHash.equals(record.getContentHash())) {
+                updated++;
+            }
             upsertRecord(dictionaryId, versionId, record);
             insertRecordHistory(dictionaryId, versionId, record);
         }
-        jdbcTemplate.update(
+        int deactivated = jdbcTemplate.update(
                 "UPDATE nsi_record " +
                         "SET active = false, updated_at = now() " +
                         "WHERE dictionary_id = ? AND dictionary_version_id <> ? AND active = true",
@@ -49,6 +60,7 @@ public class NsiPersistenceService {
                 "UPDATE nsi_dictionary_version SET loaded_at = now() WHERE id = ?",
                 versionId
         );
+        return new NsiRecordSaveResult(records.size(), inserted, updated, deactivated);
     }
 
     private long upsertDictionary(PassportDocument passport) {
@@ -190,6 +202,38 @@ public class NsiPersistenceService {
                 toJson(record.getData()),
                 toJson(record.getRawCells())
         );
+    }
+
+    private Map<String, String> findExistingHashes(long dictionaryId, List<RecordPayload> records) {
+        if (records.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        List<String> recordKeys = new ArrayList<String>();
+        for (RecordPayload record : records) {
+            recordKeys.add(record.getRecordKey());
+        }
+
+        String placeholders = joinPlaceholders(recordKeys.size());
+        List<Object> args = new ArrayList<Object>();
+        args.add(dictionaryId);
+        args.addAll(recordKeys);
+
+        List<Map.Entry<String, String>> rows = jdbcTemplate.query(
+                "SELECT record_key, content_hash FROM nsi_record " +
+                        "WHERE dictionary_id = ? AND record_key IN (" + placeholders + ")",
+                (rs, rowNum) -> new java.util.AbstractMap.SimpleEntry<String, String>(
+                        rs.getString("record_key"),
+                        rs.getString("content_hash")
+                ),
+                args.toArray()
+        );
+
+        Map<String, String> hashes = new HashMap<String, String>();
+        for (Map.Entry<String, String> row : rows) {
+            hashes.put(row.getKey(), row.getValue());
+        }
+        return hashes;
     }
 
     private void insertRecordHistory(long dictionaryId, long versionId, RecordPayload record) {

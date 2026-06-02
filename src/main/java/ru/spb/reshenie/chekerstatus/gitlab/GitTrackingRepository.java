@@ -13,6 +13,7 @@ import ru.spb.reshenie.chekerstatus.nsi.JsonNodes;
 import java.io.IOException;
 import java.sql.Timestamp;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -115,6 +116,22 @@ public class GitTrackingRepository {
                         "SET last_sync_at = now(), last_sync_status = 'ERROR', last_sync_error = ?, updated_at = now() " +
                         "WHERE id = ?",
                 trim(error, 4000),
+                documentGitLinkId
+        );
+    }
+
+    public List<StoredGitLabCommit> findStoredCommits(long documentGitLinkId) {
+        return jdbcTemplate.query(
+                "SELECT id, document_git_link_id, commit_id AS commit_sha, committed_date " +
+                        "FROM nsi_document_git_commit " +
+                        "WHERE document_git_link_id = ? " +
+                        "ORDER BY committed_date NULLS LAST, id",
+                (rs, rowNum) -> new StoredGitLabCommit(
+                        rs.getLong("id"),
+                        rs.getLong("document_git_link_id"),
+                        rs.getString("commit_sha"),
+                        toOffsetDateTime(rs.getTimestamp("committed_date"))
+                ),
                 documentGitLinkId
         );
     }
@@ -237,6 +254,13 @@ public class GitTrackingRepository {
             return null;
         }
         return Timestamp.from(dateTime.toInstant());
+    }
+
+    private OffsetDateTime toOffsetDateTime(Timestamp timestamp) {
+        if (timestamp == null) {
+            return null;
+        }
+        return OffsetDateTime.ofInstant(timestamp.toInstant(), ZoneOffset.UTC);
     }
 
     private String joinPlaceholders(int count) {
