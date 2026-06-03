@@ -21,6 +21,7 @@ nsi:
   passport-url-template: ${NSI_PASSPORT_URL_TEMPLATE:http://nsi.rosminzdrav.ru/port/rest/passport?identifier={identifier}&userKey={userKey}}
   data-url-template: ${NSI_DATA_URL_TEMPLATE:https://nsi.rosminzdrav.ru/port/rest/data?userKey={userKey}&identifier={identifier}&page={page}&size={size}}
   page-size: ${NSI_PAGE_SIZE:100}
+  progress-git-link-weight: ${NSI_PROGRESS_GIT_LINK_WEIGHT:100}
   poll-fixed-delay-ms: ${NSI_POLL_FIXED_DELAY_MS:3600000}
   poll-initial-delay-ms: ${NSI_POLL_INITIAL_DELAY_MS:60000}
   trust-all-ssl: ${NSI_TRUST_ALL_SSL:false}

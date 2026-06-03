@@ -28,17 +28,29 @@
                 <a class="button secondary" th:href="@{/dashboard}">Обновить</a>
                 <form th:action="@{/dashboard/sync-runs}" method="post">
                     <input type="hidden" name="dictionaryIdentifier" th:value="${summary.dictionaryIdentifier}">
-                    <button class="button" type="submit">Запустить синхронизацию</button>
+                    <button id="sync-start-button"
+                            class="button"
+                            type="submit"
+                            th:disabled="${summary.currentStatus == 'RUNNING'}"
+                            th:title="${summary.currentStatus == 'RUNNING' ? 'Синхронизация уже выполняется' : null}">Запустить синхронизацию</button>
                 </form>
             </div>
         </div>
 
-        <div class="notice" th:if="${message}" th:text="${message}">message</div>
-
-        <section class="stats dashboard-stats">
+        <section class="stats dashboard-stats"
+                 id="dashboard-summary"
+                 th:fragment="summary-stats"
+                 data-live-fragment-url="/dashboard/fragments/summary"
+                 th:attr="data-live-status=${summary.currentStatus}">
             <div class="stat">
                 <div class="stat-label">Текущий статус</div>
-                <div class="stat-value" th:text="${summary.currentStatus == 'RUNNING' ? 'Выполняется' : (summary.currentStatus == 'FAILED' ? 'Ошибка' : (summary.currentStatus == 'SERVER_STOPPED' ? 'Остановка сервера' : 'Ожидание'))}">Ожидание</div>
+                <div class="stat-value status-with-timer">
+                    <span th:text="${summary.currentStatus == 'RUNNING' ? 'Выполняется' : (summary.currentStatus == 'FAILED' ? 'Ошибка' : (summary.currentStatus == 'SERVER_STOPPED' ? 'Остановка сервера' : (summary.currentStatus == 'PARTIAL' ? 'Частично выполнено' : 'Ожидание')))}">Ожидание</span>
+                    <span class="status-timer"
+                          th:if="${summary.currentStatus != 'RUNNING' and summary.nextAutoRunAt != null}"
+                          th:attr="data-countdown-target=${summary.nextAutoRunAt}"
+                          th:text="${summary.nextAutoRunDelayMs != null ? 'следующий запуск через ' + @uiTimeFormatters.formatDuration(summary.nextAutoRunDelayMs) : ''}">следующий запуск</span>
+                </div>
             </div>
             <div class="stat">
                 <div class="stat-label">Последний запуск</div>
@@ -227,7 +239,10 @@
             </form>
         </details>
 
-        <section class="panel">
+        <section class="panel"
+                 id="sync-runs-panel"
+                 th:fragment="sync-runs-panel"
+                 data-live-fragment-url="/dashboard/fragments/sync-runs">
             <div class="panel-header">
                 <div class="panel-title">История запусков синхронизации</div>
                 <div class="muted">
@@ -257,20 +272,38 @@
                     </tr>
                     </thead>
                     <tbody>
-                    <tr th:each="run : ${runs.content}" th:classappend="${run.errorCount > 0 or run.status.name() == 'FAILED' or run.status.name() == 'SERVER_STOPPED'} ? 'row-error' : ''">
+                    <tr th:each="run : ${runs.content}"
+                        class="clickable-row"
+                        role="link"
+                        tabindex="0"
+                        th:attr="data-row-href=@{/dashboard/sync-runs/{id}(id=${run.id})}"
+                        th:with="running=${run.status.name() == 'RUNNING'}"
+                        th:classappend="${run.errorCount > 0 or run.status.name() == 'FAILED' or run.status.name() == 'SERVER_STOPPED'} ? 'row-error' : ''">
                         <td class="muted">
-                            <a th:href="@{/dashboard/sync-runs/{id}(id=${run.id})}">
-                                <time th:if="${run.startedAt != null}"
-                                      th:attr="datetime=${run.startedAt},data-utc=${run.startedAt}"
-                                      th:text="${@uiTimeFormatters.formatUtcDateTime(run.startedAt)}">date</time>
-                            </a>
+                            <time th:if="${run.startedAt != null}"
+                                  th:attr="datetime=${run.startedAt},data-utc=${run.startedAt}"
+                                  th:text="${@uiTimeFormatters.formatUtcDateTime(run.startedAt)}">date</time>
                         </td>
-                        <td class="muted">
+                        <td class="progress-column" colspan="2" th:if="${running}">
+                            <div class="progress-widget progress-widget-compact"
+                                 th:attr="data-progress-key=${'run-' + run.id},data-progress-value=${run.progressPercent},data-progress-running=${running}">
+                                <div class="progress-meta">
+                                    <span>Выполняется</span>
+                                    <strong th:text="${run.progressLabel}">0%</strong>
+                                </div>
+                                <div class="progress-track"
+                                     role="progressbar"
+                                     th:attr="aria-valuenow=${run.progressPercent},aria-valuemin=0,aria-valuemax=100,aria-label=${'Прогресс запуска #' + run.id}">
+                                    <div class="progress-fill" th:style="'width: ' + ${run.progressPercent} + '%'"></div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="muted" th:unless="${running}">
                             <time th:if="${run.finishedAt != null}"
                                   th:attr="datetime=${run.finishedAt},data-utc=${run.finishedAt}"
                                   th:text="${@uiTimeFormatters.formatUtcDateTime(run.finishedAt)}">date</time>
                         </td>
-                        <td>
+                        <td th:unless="${running}">
                             <span th:if="${run.durationMs != null}"
                                   th:attr="data-duration-ms=${run.durationMs},data-duration-format='compact'"
                                   th:text="${@uiTimeFormatters.formatDuration(run.durationMs)}">0 миллисекунд</span>
@@ -308,5 +341,6 @@
     </main>
 </div>
 <script th:src="@{/js/client-date-format.js}"></script>
+<script th:src="@{/js/live-updates.js}"></script>
 </body>
 </html>

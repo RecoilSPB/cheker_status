@@ -18,9 +18,15 @@
             <a th:href="@{/documents(status='ERROR')}">Ошибки</a>
         </nav>
     </aside>
-    <main class="main">
+    <main class="main"
+          id="sync-run-detail"
+          th:fragment="run-detail"
+          th:attr="data-sync-run-id=${details.run.id},data-run-status=${details.run.status.name()},data-live-fragment-url=@{/dashboard/sync-runs/{id}/fragment(id=${details.run.id})}">
         <div class="topbar">
-            <a class="button secondary" th:href="@{/dashboard}">К дашборду</a>
+            <div class="actions">
+                <a class="button secondary" th:href="@{/dashboard}">К дашборду</a>
+                <a class="button secondary" th:href="@{/dashboard/sync-runs/{id}/logs(id=${details.run.id})}">Журнал действий</a>
+            </div>
         </div>
 
         <section class="document-hero">
@@ -33,7 +39,21 @@
                           th:text="${@uiTimeFormatters.formatUtcDateTime(details.run.startedAt)}">date</time>
                 </div>
             </div>
-            <span class="status" th:classappend="${details.run.statusCss}" th:text="${details.run.displayStatus}">Статус</span>
+            <div class="hero-status">
+                <span class="status" th:classappend="${details.run.statusCss}" th:text="${details.run.displayStatus}">Статус</span>
+                <div class="progress-widget progress-widget-hero"
+                     th:attr="data-progress-key=${'run-' + details.run.id},data-progress-value=${details.run.progressPercent},data-progress-running=${details.run.status.name() == 'RUNNING'}">
+                    <div class="progress-meta">
+                        <span>Прогресс</span>
+                        <strong th:text="${details.run.progressLabel}">0%</strong>
+                    </div>
+                    <div class="progress-track"
+                         role="progressbar"
+                         th:attr="aria-valuenow=${details.run.progressPercent},aria-valuemin=0,aria-valuemax=100,aria-label=${'Прогресс запуска #' + details.run.id}">
+                        <div class="progress-fill" th:style="'width: ' + ${details.run.progressPercent} + '%'"></div>
+                    </div>
+                </div>
+            </div>
         </section>
 
         <section class="detail-grid">
@@ -121,5 +141,6 @@
     </main>
 </div>
 <script th:src="@{/js/client-date-format.js}"></script>
+<script th:src="@{/js/live-updates.js}"></script>
 </body>
 </html>

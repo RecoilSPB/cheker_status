@@ -11,6 +11,7 @@ public class NsiSyncRunUpdate {
     private int gitProjectsProcessed;
     private int gitCommitsProcessed;
     private int gitFilesProcessed;
+    private int progressPercent;
     private int errorCount;
     private String errorMessage;
 
@@ -25,6 +26,7 @@ public class NsiSyncRunUpdate {
         copy.setGitProjectsProcessed(gitProjectsProcessed);
         copy.setGitCommitsProcessed(gitCommitsProcessed);
         copy.setGitFilesProcessed(gitFilesProcessed);
+        copy.setProgressPercent(progressPercent);
         copy.setErrorCount(errorCount);
         copy.setErrorMessage(errorMessage);
         return copy;
@@ -100,6 +102,14 @@ public class NsiSyncRunUpdate {
 
     public void setGitFilesProcessed(int gitFilesProcessed) {
         this.gitFilesProcessed = gitFilesProcessed;
+    }
+
+    public int getProgressPercent() {
+        return progressPercent;
+    }
+
+    public void setProgressPercent(int progressPercent) {
+        this.progressPercent = Math.max(0, Math.min(100, progressPercent));
     }
 
     public int getErrorCount() {

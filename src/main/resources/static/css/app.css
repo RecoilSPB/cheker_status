@@ -156,6 +156,13 @@ a {
     color: var(--text);
 }
 
+button.button:disabled {
+    border-color: #b7c3d6;
+    background: #cbd5e1;
+    color: #f8fafc;
+    cursor: not-allowed;
+}
+
 .stats {
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -190,6 +197,18 @@ a {
     margin-top: 4px;
     font-size: 24px;
     font-weight: 750;
+}
+
+.status-with-timer {
+    display: grid;
+    gap: 4px;
+}
+
+.status-timer {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.35;
 }
 
 .stat-small {
@@ -410,6 +429,15 @@ a {
     background: #f8fbff;
 }
 
+.clickable-row {
+    cursor: pointer;
+}
+
+.clickable-row:focus-visible td {
+    outline: 2px solid #93b4ff;
+    outline-offset: -2px;
+}
+
 .row-error td {
     background: #fff8f8;
 }
@@ -485,6 +513,62 @@ a {
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: 8px;
+}
+
+.hero-status {
+    display: grid;
+    justify-items: end;
+    gap: 10px;
+    min-width: 240px;
+}
+
+.progress-column {
+    min-width: 220px;
+}
+
+.progress-widget {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+}
+
+.progress-widget-compact {
+    width: 220px;
+}
+
+.progress-widget-hero {
+    width: 240px;
+}
+
+.progress-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.progress-track {
+    width: 100%;
+    height: 8px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: var(--surface-2);
+}
+
+.progress-fill {
+    height: 100%;
+    border-radius: inherit;
+    background: var(--blue);
+    transition: width 700ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .progress-fill {
+        transition: none;
+    }
 }
 
 .tabs {
@@ -634,6 +718,15 @@ a {
     .topbar {
         align-items: stretch;
         flex-direction: column;
+    }
+
+    .hero-status {
+        justify-items: stretch;
+        width: 100%;
+    }
+
+    .progress-widget-hero {
+        width: 100%;
     }
 
     .metrics-summary,

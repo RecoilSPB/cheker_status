@@ -5,13 +5,17 @@ import ru.spb.reshenie.chekerstatus.domain.sync.NsiSyncRun;
 import ru.spb.reshenie.chekerstatus.domain.sync.NsiSyncRunDetails;
 import ru.spb.reshenie.chekerstatus.domain.sync.NsiSyncRunError;
 import ru.spb.reshenie.chekerstatus.domain.sync.NsiSyncRunFilter;
+import ru.spb.reshenie.chekerstatus.domain.sync.NsiSyncRunLogEntry;
+import ru.spb.reshenie.chekerstatus.domain.sync.NsiSyncRunLogFilter;
 import ru.spb.reshenie.chekerstatus.domain.sync.NsiSyncRunUpdate;
 import ru.spb.reshenie.chekerstatus.domain.sync.PagedResult;
 import ru.spb.reshenie.chekerstatus.domain.sync.SyncErrorStage;
+import ru.spb.reshenie.chekerstatus.domain.sync.SyncRunLogLevel;
 import ru.spb.reshenie.chekerstatus.domain.sync.SyncRunStatus;
 import ru.spb.reshenie.chekerstatus.domain.sync.SyncRunType;
 import ru.spb.reshenie.chekerstatus.application.sync.port.SyncRunHistoryPort;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -29,6 +33,10 @@ import java.util.Map;
 
 @Repository
 public class NsiSyncRunRepository implements SyncRunHistoryPort {
+
+    private static final TypeReference<Map<String, Object>> MAP_TYPE =
+            new TypeReference<Map<String, Object>>() {
+            };
 
     private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper objectMapper;
@@ -69,6 +77,7 @@ public class NsiSyncRunRepository implements SyncRunHistoryPort {
                         "git_projects_processed = ?, " +
                         "git_commits_processed = ?, " +
                         "git_files_processed = ?, " +
+                        "progress_percent = ?, " +
                         "error_count = ?, " +
                         "error_message = ?, " +
                         "updated_at = now() " +
@@ -83,6 +92,7 @@ public class NsiSyncRunRepository implements SyncRunHistoryPort {
                 update.getGitProjectsProcessed(),
                 update.getGitCommitsProcessed(),
                 update.getGitFilesProcessed(),
+                update.getProgressPercent(),
                 update.getErrorCount(),
                 trim(update.getErrorMessage(), 4000),
                 runId
@@ -101,6 +111,7 @@ public class NsiSyncRunRepository implements SyncRunHistoryPort {
                         "git_projects_processed = ?, " +
                         "git_commits_processed = ?, " +
                         "git_files_processed = ?, " +
+                        "progress_percent = ?, " +
                         "error_count = ?, " +
                         "error_message = ?, " +
                         "updated_at = now() " +
@@ -114,10 +125,16 @@ public class NsiSyncRunRepository implements SyncRunHistoryPort {
                 update.getGitProjectsProcessed(),
                 update.getGitCommitsProcessed(),
                 update.getGitFilesProcessed(),
+                update.getProgressPercent(),
                 update.getErrorCount(),
                 trim(update.getErrorMessage(), 4000),
                 runId
         );
+    }
+
+    public SyncRunStatus findLatestRunStatus() {
+        String status = queryOptionalString("SELECT status FROM nsi_sync_run ORDER BY started_at DESC, id DESC LIMIT 1");
+        return status == null ? null : SyncRunStatus.valueOf(status);
     }
 
     public void stopRunOnServerShutdown(long runId, NsiSyncRunUpdate update, String message) {
@@ -135,6 +152,7 @@ public class NsiSyncRunRepository implements SyncRunHistoryPort {
                         "git_projects_processed = ?, " +
                         "git_commits_processed = ?, " +
                         "git_files_processed = ?, " +
+                        "progress_percent = ?, " +
                         "error_count = ?, " +
                         "error_message = ?, " +
                         "updated_at = now() " +
@@ -149,6 +167,7 @@ public class NsiSyncRunRepository implements SyncRunHistoryPort {
                 update.getGitProjectsProcessed(),
                 update.getGitCommitsProcessed(),
                 update.getGitFilesProcessed(),
+                update.getProgressPercent(),
                 update.getErrorCount(),
                 trim(message, 4000),
                 runId
@@ -156,6 +175,16 @@ public class NsiSyncRunRepository implements SyncRunHistoryPort {
     }
 
     public int stopRunningRunsAfterPreviousServerStop(String message) {
+        List<Long> runIds = jdbcTemplate.queryForList(
+                "SELECT id FROM nsi_sync_run WHERE status = 'RUNNING'",
+                Long.class
+        );
+        for (Long runId : runIds) {
+            if (runId != null) {
+                addLog(runId.longValue(), SyncRunLogLevel.ERROR, SyncErrorStage.UNKNOWN, null,
+                        null, null, null, null, message, null, new LinkedHashMap<String, Object>());
+            }
+        }
         return jdbcTemplate.update(
                 "UPDATE nsi_sync_run SET " +
                         "status = ?, " +
@@ -179,20 +208,37 @@ public class NsiSyncRunRepository implements SyncRunHistoryPort {
                          String filePath,
                          String message,
                          Throwable throwable) {
+        addLog(runId, SyncRunLogLevel.ERROR, stage, dictionaryIdentifier, gitLinkId, projectPath,
+                commitSha, filePath, message, throwable, new LinkedHashMap<String, Object>());
+    }
+
+    public void addLog(long runId,
+                       SyncRunLogLevel level,
+                       SyncErrorStage stage,
+                       String dictionaryIdentifier,
+                       Long gitLinkId,
+                       String projectPath,
+                       String commitSha,
+                       String filePath,
+                       String message,
+                       Throwable throwable,
+                       Map<String, Object> details) {
         jdbcTemplate.update(
-                "INSERT INTO nsi_sync_run_error (" +
-                        "sync_run_id, error_stage, dictionary_identifier, git_link_id, project_path, " +
-                        "commit_sha, file_path, error_message, stack_trace" +
-                        ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO nsi_sync_run_log (" +
+                        "sync_run_id, level, stage, dictionary_identifier, git_link_id, project_path, " +
+                        "commit_sha, file_path, message, stack_trace, details" +
+                        ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS jsonb))",
                 runId,
-                stage.name(),
+                (level == null ? SyncRunLogLevel.INFO : level).name(),
+                stage == null ? SyncErrorStage.UNKNOWN.name() : stage.name(),
                 dictionaryIdentifier,
                 gitLinkId,
                 projectPath,
                 commitSha,
                 filePath,
                 trim(message, 4000),
-                throwable == null ? null : trim(stackTrace(throwable), 12000)
+                throwable == null ? null : trim(stackTrace(throwable), 12000),
+                toJson(details == null ? new LinkedHashMap<String, Object>() : details)
         );
     }
 
@@ -205,6 +251,7 @@ public class NsiSyncRunRepository implements SyncRunHistoryPort {
             currentStatus = "RUNNING";
         } else if (lastRun != null
                 && (SyncRunStatus.FAILED.equals(lastRun.getStatus())
+                || SyncRunStatus.PARTIAL.equals(lastRun.getStatus())
                 || SyncRunStatus.SERVER_STOPPED.equals(lastRun.getStatus()))) {
             currentStatus = lastRun.getStatus().name();
         } else {
@@ -267,24 +314,61 @@ public class NsiSyncRunRepository implements SyncRunHistoryPort {
 
     public List<NsiSyncRunError> findErrors(long runId) {
         return jdbcTemplate.query(
-                "SELECT id, sync_run_id, error_stage, dictionary_identifier, git_link_id, project_path, " +
-                        "commit_sha, file_path, error_message, stack_trace, created_at " +
-                        "FROM nsi_sync_run_error WHERE sync_run_id = ? ORDER BY created_at, id",
+                "SELECT id, sync_run_id, stage, dictionary_identifier, git_link_id, project_path, " +
+                        "commit_sha, file_path, message, stack_trace, created_at " +
+                        "FROM nsi_sync_run_log WHERE sync_run_id = ? AND level = 'ERROR' ORDER BY created_at, id",
                 (rs, rowNum) -> new NsiSyncRunError(
                         rs.getLong("id"),
                         rs.getLong("sync_run_id"),
-                        SyncErrorStage.valueOf(rs.getString("error_stage")),
+                        SyncErrorStage.valueOf(rs.getString("stage")),
                         rs.getString("dictionary_identifier"),
                         longOrNull(rs.getObject("git_link_id")),
                         rs.getString("project_path"),
                         rs.getString("commit_sha"),
                         rs.getString("file_path"),
-                        rs.getString("error_message"),
+                        rs.getString("message"),
                         rs.getString("stack_trace"),
                         toOffsetDateTime(rs.getTimestamp("created_at"))
                 ),
                 runId
         );
+    }
+
+    public PagedResult<NsiSyncRunLogEntry> findLogs(long runId, NsiSyncRunLogFilter filter) {
+        LogSqlFilter sqlFilter = buildLogFilter(runId, filter);
+        long total = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM nsi_sync_run_log l " + sqlFilter.whereSql,
+                Long.class,
+                sqlFilter.args.toArray()
+        );
+
+        List<Object> args = new ArrayList<Object>(sqlFilter.args);
+        args.add(filter.getSize());
+        args.add(filter.getPage() * filter.getSize());
+        List<NsiSyncRunLogEntry> logs = jdbcTemplate.query(
+                "SELECT id, sync_run_id, level, stage, dictionary_identifier, git_link_id, project_path, " +
+                        "commit_sha, file_path, message, stack_trace, details::text AS details_json, created_at " +
+                        "FROM nsi_sync_run_log l " +
+                        sqlFilter.whereSql +
+                        " ORDER BY created_at ASC, id ASC LIMIT ? OFFSET ?",
+                (rs, rowNum) -> new NsiSyncRunLogEntry(
+                        rs.getLong("id"),
+                        rs.getLong("sync_run_id"),
+                        SyncRunLogLevel.valueOf(rs.getString("level")),
+                        SyncErrorStage.valueOf(rs.getString("stage")),
+                        rs.getString("dictionary_identifier"),
+                        longOrNull(rs.getObject("git_link_id")),
+                        rs.getString("project_path"),
+                        rs.getString("commit_sha"),
+                        rs.getString("file_path"),
+                        rs.getString("message"),
+                        rs.getString("stack_trace"),
+                        fromJsonMap(rs.getString("details_json")),
+                        toOffsetDateTime(rs.getTimestamp("created_at"))
+                ),
+                args.toArray()
+        );
+        return new PagedResult<NsiSyncRunLogEntry>(logs, filter.getPage(), filter.getSize(), total);
     }
 
     private NsiSyncRun findFirstRun(String suffix) {
@@ -334,6 +418,24 @@ public class NsiSyncRunRepository implements SyncRunHistoryPort {
         return new SqlFilter(where, args);
     }
 
+    private LogSqlFilter buildLogFilter(long runId, NsiSyncRunLogFilter filter) {
+        List<String> conditions = new ArrayList<String>();
+        List<Object> args = new ArrayList<Object>();
+        conditions.add("l.sync_run_id = ?");
+        args.add(Long.valueOf(runId));
+
+        if (filter.getLevel() != null) {
+            conditions.add("l.level = ?");
+            args.add(filter.getLevel().name());
+        }
+        if (filter.getStage() != null) {
+            conditions.add("l.stage = ?");
+            args.add(filter.getStage().name());
+        }
+
+        return new LogSqlFilter("WHERE " + join(conditions, " AND "), args);
+    }
+
     private String orderBy(NsiSyncRunFilter filter) {
         String sort = filter.getSort();
         String column;
@@ -359,7 +461,7 @@ public class NsiSyncRunRepository implements SyncRunHistoryPort {
                 alias + ".nsi_rows_updated, " + alias + ".nsi_rows_deactivated, " +
                 alias + ".git_links_found, " + alias + ".git_projects_processed, " +
                 alias + ".git_commits_processed, " + alias + ".git_files_processed, " +
-                alias + ".error_count, " + alias + ".error_message";
+                alias + ".progress_percent, " + alias + ".error_count, " + alias + ".error_message";
     }
 
     private NsiSyncRun mapRun(String alias, java.sql.ResultSet rs) throws java.sql.SQLException {
@@ -381,6 +483,7 @@ public class NsiSyncRunRepository implements SyncRunHistoryPort {
                 rs.getInt("git_projects_processed"),
                 rs.getInt("git_commits_processed"),
                 rs.getInt("git_files_processed"),
+                rs.getInt("progress_percent"),
                 rs.getInt("error_count"),
                 rs.getString("error_message")
         );
@@ -412,6 +515,17 @@ public class NsiSyncRunRepository implements SyncRunHistoryPort {
             return objectMapper.writeValueAsString(value);
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Cannot serialize JSON value", e);
+        }
+    }
+
+    private Map<String, Object> fromJsonMap(String json) {
+        if (json == null || json.isBlank()) {
+            return new LinkedHashMap<String, Object>();
+        }
+        try {
+            return objectMapper.readValue(json, MAP_TYPE);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Cannot parse JSON value", e);
         }
     }
 
@@ -469,6 +583,16 @@ public class NsiSyncRunRepository implements SyncRunHistoryPort {
         private final List<Object> args;
 
         private SqlFilter(String whereSql, List<Object> args) {
+            this.whereSql = whereSql;
+            this.args = args;
+        }
+    }
+
+    private static class LogSqlFilter {
+        private final String whereSql;
+        private final List<Object> args;
+
+        private LogSqlFilter(String whereSql, List<Object> args) {
             this.whereSql = whereSql;
             this.args = args;
         }

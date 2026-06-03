@@ -20,11 +20,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
+import ru.spb.reshenie.chekerstatus.application.sync.NsiSyncRunService;
 import ru.spb.reshenie.chekerstatus.domain.sync.SyncErrorStage;
+import ru.spb.reshenie.chekerstatus.domain.sync.SyncRunLogLevel;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
@@ -50,31 +54,44 @@ public class GitCommitFileHistoryService {
     private final GitCommitFileRepositoryPort fileRepository;
     private final ExecutorService executorService;
     private final GitLabConcurrencyPort limiter;
+    private final NsiSyncRunService syncRunService;
 
     public GitCommitFileHistoryService(GitLabSyncSettings settings,
                                        GitLabClientPort gitLabClient,
                                        GitTrackingRepositoryPort gitTrackingRepository,
                                        GitCommitFileRepositoryPort fileRepository,
                                        @Qualifier("gitLabVirtualThreadExecutor") ExecutorService executorService,
-                                       GitLabConcurrencyPort limiter) {
+                                       GitLabConcurrencyPort limiter,
+                                       NsiSyncRunService syncRunService) {
         this.settings = settings;
         this.gitLabClient = gitLabClient;
         this.gitTrackingRepository = gitTrackingRepository;
         this.fileRepository = fileRepository;
         this.executorService = executorService;
         this.limiter = limiter;
+        this.syncRunService = syncRunService;
     }
 
     public GitFileHistorySyncResult synchronizeDocumentFiles(DocumentGitLink document) {
+        return synchronizeDocumentFiles(document, null, null);
+    }
+
+    public GitFileHistorySyncResult synchronizeDocumentFiles(DocumentGitLink document,
+                                                             Long runId,
+                                                             String dictionaryIdentifier) {
         if (!settings.isFileHistoryEnabled()) {
             log.info("GitLab file history tracking is disabled");
+            addLog(runId, SyncRunLogLevel.INFO, SyncErrorStage.GITLAB_COMMIT_DIFF, dictionaryIdentifier,
+                    document, null, null, "GitLab file-history отключен", null);
             return GitFileHistorySyncResult.disabled();
         }
         if (!settings.isVirtualThreadsEnabled()) {
-            return synchronizeDocumentFilesSequentially(document);
+            return synchronizeDocumentFilesSequentially(document, runId, dictionaryIdentifier);
         }
 
         List<StoredGitLabCommit> commits = gitTrackingRepository.findCommitsPendingFileHistory(document.getId());
+        addLog(runId, SyncRunLogLevel.INFO, SyncErrorStage.GITLAB_COMMIT_DIFF, dictionaryIdentifier,
+                document, null, null, "GitLab file-history: старт", pendingCommitDetails(commits.size()));
         AtomicInteger processedCommits = new AtomicInteger();
         AtomicInteger processedFiles = new AtomicInteger();
         AtomicInteger failedCommits = new AtomicInteger();
@@ -93,6 +110,8 @@ public class GitCommitFileHistoryService {
                             synchronizeCommitFiles(
                                     document,
                                     commit,
+                                    runId,
+                                    dictionaryIdentifier,
                                     processedCommits,
                                     processedFiles,
                                     failedCommits,
@@ -119,11 +138,18 @@ public class GitCommitFileHistoryService {
         );
         log.info("GitLab file history tracking finished: documentOid={}, {}",
                 document.getDocumentOid(), result.summary());
+        addLog(runId, result.hasErrors() ? SyncRunLogLevel.WARN : SyncRunLogLevel.INFO,
+                SyncErrorStage.GITLAB_COMMIT_DIFF, dictionaryIdentifier, document, null, null,
+                "GitLab file-history: завершено", fileHistoryDetails(result));
         return result;
     }
 
-    private GitFileHistorySyncResult synchronizeDocumentFilesSequentially(DocumentGitLink document) {
+    private GitFileHistorySyncResult synchronizeDocumentFilesSequentially(DocumentGitLink document,
+                                                                         Long runId,
+                                                                         String dictionaryIdentifier) {
         List<StoredGitLabCommit> commits = gitTrackingRepository.findCommitsPendingFileHistory(document.getId());
+        addLog(runId, SyncRunLogLevel.INFO, SyncErrorStage.GITLAB_COMMIT_DIFF, dictionaryIdentifier,
+                document, null, null, "GitLab file-history: старт", pendingCommitDetails(commits.size()));
         int processedCommits = 0;
         int processedFiles = 0;
         int failedCommits = 0;
@@ -132,13 +158,17 @@ public class GitCommitFileHistoryService {
         List<GitSyncError> errors = new ArrayList<GitSyncError>();
 
         for (StoredGitLabCommit commit : commits) {
-            processedCommits++;
             int commitFailedFiles = 0;
             String commitFirstError = null;
             try {
+                addLog(runId, SyncRunLogLevel.INFO, SyncErrorStage.GITLAB_COMMIT_DIFF, dictionaryIdentifier,
+                        document, commit.getCommitSha(), null, "GitLab commit file-history: старт", null);
                 GitLabCommitDetails details = gitLabClient.fetchCommitDetails(document, commit.getCommitSha());
                 String parentSha = details.getFirstParentSha();
                 List<GitLabCommitDiff> diffs = gitLabClient.fetchCommitDiff(document, commit.getCommitSha());
+                addLog(runId, SyncRunLogLevel.INFO, SyncErrorStage.GITLAB_COMMIT_DIFF, dictionaryIdentifier,
+                        document, commit.getCommitSha(), null, "GitLab commit diff загружен",
+                        diffDetails(diffs.size()));
                 int fileLimit = settings.getMaxFilesPerCommit();
                 int fileIndex = 0;
                 for (GitLabCommitDiff diff : diffs) {
@@ -155,7 +185,7 @@ public class GitCommitFileHistoryService {
                             return Boolean.valueOf(fileRepository.saveFileChange(change));
                         }
                     });
-                    if (inserted) {
+                    if (inserted && !STATUS_FAILED.equals(change.getContentFetchStatus())) {
                         processedFiles++;
                     }
                     if (STATUS_FAILED.equals(change.getContentFetchStatus())) {
@@ -182,6 +212,9 @@ public class GitCommitFileHistoryService {
                     markCommitFileHistoryFailed(commit, commitFirstError);
                 } else {
                     markCommitFileHistorySuccess(commit);
+                    processedCommits++;
+                    addLog(runId, SyncRunLogLevel.INFO, SyncErrorStage.GITLAB_COMMIT_DIFF, dictionaryIdentifier,
+                            document, commit.getCommitSha(), null, "GitLab commit file-history: успешно", null);
                 }
             } catch (RuntimeException e) {
                 failedCommits++;
@@ -201,6 +234,8 @@ public class GitCommitFileHistoryService {
                         document.getDocumentOid(), commit.getCommitSha(), e.getMessage());
                 log.debug("GitLab commit file synchronization error details", e);
                 markCommitFileHistoryFailed(commit, e.getMessage());
+                addLog(runId, SyncRunLogLevel.ERROR, SyncErrorStage.GITLAB_COMMIT_DIFF, dictionaryIdentifier,
+                        document, commit.getCommitSha(), null, "GitLab commit file-history: ошибка", e, null);
             }
         }
 
@@ -214,22 +249,30 @@ public class GitCommitFileHistoryService {
         );
         log.info("GitLab file history tracking finished: documentOid={}, {}",
                 document.getDocumentOid(), result.summary());
+        addLog(runId, result.hasErrors() ? SyncRunLogLevel.WARN : SyncRunLogLevel.INFO,
+                SyncErrorStage.GITLAB_COMMIT_DIFF, dictionaryIdentifier, document, null, null,
+                "GitLab file-history: завершено", fileHistoryDetails(result));
         return result;
     }
 
     private void synchronizeCommitFiles(DocumentGitLink document,
                                         StoredGitLabCommit commit,
+                                        Long runId,
+                                        String dictionaryIdentifier,
                                         AtomicInteger processedCommits,
                                         AtomicInteger processedFiles,
                                         AtomicInteger failedCommits,
                                         AtomicInteger failedFiles,
                                         AtomicReference<String> firstError,
                                         ConcurrentLinkedQueue<GitSyncError> errors) {
-        processedCommits.incrementAndGet();
         try {
+            addLog(runId, SyncRunLogLevel.INFO, SyncErrorStage.GITLAB_COMMIT_DIFF, dictionaryIdentifier,
+                    document, commit.getCommitSha(), null, "GitLab commit file-history: старт", null);
             GitLabCommitDetails details = gitLabClient.fetchCommitDetails(document, commit.getCommitSha());
             String parentSha = details.getFirstParentSha();
             List<GitLabCommitDiff> diffs = gitLabClient.fetchCommitDiff(document, commit.getCommitSha());
+            addLog(runId, SyncRunLogLevel.INFO, SyncErrorStage.GITLAB_COMMIT_DIFF, dictionaryIdentifier,
+                    document, commit.getCommitSha(), null, "GitLab commit diff загружен", diffDetails(diffs.size()));
             List<Future<Void>> fileFutures = new ArrayList<Future<Void>>();
             AtomicInteger commitFailedFiles = new AtomicInteger();
             AtomicReference<String> commitFirstError = new AtomicReference<String>();
@@ -253,6 +296,8 @@ public class GitCommitFileHistoryService {
                                         commit,
                                         parentSha,
                                         diff,
+                                        runId,
+                                        dictionaryIdentifier,
                                         processedFiles,
                                         failedFiles,
                                         commitFailedFiles,
@@ -273,6 +318,9 @@ public class GitCommitFileHistoryService {
                 markCommitFileHistoryFailed(commit, commitFirstError.get());
             } else {
                 markCommitFileHistorySuccess(commit);
+                processedCommits.incrementAndGet();
+                addLog(runId, SyncRunLogLevel.INFO, SyncErrorStage.GITLAB_COMMIT_DIFF, dictionaryIdentifier,
+                        document, commit.getCommitSha(), null, "GitLab commit file-history: успешно", null);
             }
         } catch (RuntimeException e) {
             failedCommits.incrementAndGet();
@@ -290,6 +338,8 @@ public class GitCommitFileHistoryService {
                     document.getDocumentOid(), commit.getCommitSha(), e.getMessage());
             log.debug("GitLab commit file synchronization error details", e);
             markCommitFileHistoryFailed(commit, e.getMessage());
+            addLog(runId, SyncRunLogLevel.ERROR, SyncErrorStage.GITLAB_COMMIT_DIFF, dictionaryIdentifier,
+                    document, commit.getCommitSha(), null, "GitLab commit file-history: ошибка", e, null);
         }
     }
 
@@ -297,6 +347,8 @@ public class GitCommitFileHistoryService {
                                        StoredGitLabCommit commit,
                                        String parentSha,
                                        GitLabCommitDiff diff,
+                                       Long runId,
+                                       String dictionaryIdentifier,
                                        AtomicInteger processedFiles,
                                        AtomicInteger failedFiles,
                                        AtomicInteger commitFailedFiles,
@@ -311,8 +363,13 @@ public class GitCommitFileHistoryService {
                     return Boolean.valueOf(fileRepository.saveFileChange(change));
                 }
             });
-            if (inserted) {
+            if (inserted && !STATUS_FAILED.equals(change.getContentFetchStatus())) {
                 processedFiles.incrementAndGet();
+                if (STATUS_SUCCESS.equals(change.getContentFetchStatus())) {
+                    addLog(runId, SyncRunLogLevel.INFO, SyncErrorStage.GITLAB_FILE_CONTENT, dictionaryIdentifier,
+                            document, commit.getCommitSha(), change.getFilePath(),
+                            "GitLab file-history: файл сохранен", fileChangeDetails(change));
+                }
             }
             if (STATUS_FAILED.equals(change.getContentFetchStatus())) {
                 failedFiles.incrementAndGet();
@@ -328,6 +385,13 @@ public class GitCommitFileHistoryService {
                         change.getContentFetchError(),
                         null
                 ));
+                addLog(runId, SyncRunLogLevel.ERROR, SyncErrorStage.GITLAB_FILE_CONTENT, dictionaryIdentifier,
+                        document, commit.getCommitSha(), change.getFilePath(),
+                        "GitLab file-history: ошибка загрузки файла", null, fileChangeDetails(change));
+            } else if (inserted && !STATUS_SUCCESS.equals(change.getContentFetchStatus())) {
+                addLog(runId, SyncRunLogLevel.WARN, SyncErrorStage.GITLAB_FILE_CONTENT, dictionaryIdentifier,
+                        document, commit.getCommitSha(), change.getFilePath(),
+                        "GitLab file-history: файл сохранен без содержимого", fileChangeDetails(change));
             }
         } catch (RuntimeException e) {
             failedFiles.incrementAndGet();
@@ -346,6 +410,8 @@ public class GitCommitFileHistoryService {
             log.warn("Cannot synchronize GitLab commit file: documentOid={}, commit={}, file={}, error={}",
                     document.getDocumentOid(), commit.getCommitSha(), diff.filePath(), e.getMessage());
             log.debug("GitLab commit file synchronization error details", e);
+            addLog(runId, SyncRunLogLevel.ERROR, SyncErrorStage.GITLAB_FILE_CONTENT, dictionaryIdentifier,
+                    document, commit.getCommitSha(), diff.filePath(), "GitLab file-history: ошибка файла", e, null);
         }
     }
 
@@ -490,6 +556,75 @@ public class GitCommitFileHistoryService {
                 diff.getOldPath(),
                 parentSha
         );
+    }
+
+    private void addLog(Long runId,
+                        SyncRunLogLevel level,
+                        SyncErrorStage stage,
+                        String dictionaryIdentifier,
+                        DocumentGitLink document,
+                        String commitSha,
+                        String filePath,
+                        String message,
+                        Map<String, Object> details) {
+        addLog(runId, level, stage, dictionaryIdentifier, document, commitSha, filePath, message, null, details);
+    }
+
+    private void addLog(Long runId,
+                        SyncRunLogLevel level,
+                        SyncErrorStage stage,
+                        String dictionaryIdentifier,
+                        DocumentGitLink document,
+                        String commitSha,
+                        String filePath,
+                        String message,
+                        Throwable throwable,
+                        Map<String, Object> details) {
+        if (runId == null) {
+            return;
+        }
+        syncRunService.safeAddLog(runId.longValue(), level, stage, dictionaryIdentifier,
+                document == null ? null : Long.valueOf(document.getId()),
+                document == null ? null : document.getProjectPath(),
+                commitSha,
+                filePath,
+                message,
+                throwable,
+                details);
+    }
+
+    private Map<String, Object> pendingCommitDetails(int commits) {
+        Map<String, Object> details = new LinkedHashMap<String, Object>();
+        details.put("pendingCommits", Integer.valueOf(commits));
+        return details;
+    }
+
+    private Map<String, Object> diffDetails(int files) {
+        Map<String, Object> details = new LinkedHashMap<String, Object>();
+        details.put("files", Integer.valueOf(files));
+        return details;
+    }
+
+    private Map<String, Object> fileHistoryDetails(GitFileHistorySyncResult result) {
+        Map<String, Object> details = new LinkedHashMap<String, Object>();
+        details.put("processedCommits", Integer.valueOf(result.getProcessedCommits()));
+        details.put("processedFiles", Integer.valueOf(result.getProcessedFiles()));
+        details.put("failedCommits", Integer.valueOf(result.getFailedCommits()));
+        details.put("failedFiles", Integer.valueOf(result.getFailedFiles()));
+        details.put("firstError", result.getFirstError());
+        return details;
+    }
+
+    private Map<String, Object> fileChangeDetails(GitCommitFileChange change) {
+        Map<String, Object> details = new LinkedHashMap<String, Object>();
+        details.put("changeType", change.getChangeType());
+        details.put("renamed", Boolean.valueOf(change.isRenamedFile()));
+        details.put("newFile", Boolean.valueOf(change.isNewFile()));
+        details.put("deletedFile", Boolean.valueOf(change.isDeletedFile()));
+        details.put("diffTooLarge", Boolean.valueOf(change.isDiffTooLarge()));
+        details.put("contentFetchStatus", change.getContentFetchStatus());
+        details.put("contentFetchError", change.getContentFetchError());
+        return details;
     }
 
     private ContentFetchOutcome fetchContent(DocumentGitLink document,

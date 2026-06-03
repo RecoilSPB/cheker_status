@@ -2,6 +2,7 @@ package ru.spb.reshenie.chekerstatus.application.sync.port;
 
 import ru.spb.reshenie.chekerstatus.domain.sync.NsiSyncRunUpdate;
 import ru.spb.reshenie.chekerstatus.domain.sync.SyncErrorStage;
+import ru.spb.reshenie.chekerstatus.domain.sync.SyncRunLogLevel;
 import ru.spb.reshenie.chekerstatus.domain.sync.SyncRunStatus;
 import ru.spb.reshenie.chekerstatus.domain.sync.SyncRunType;
 
@@ -18,6 +19,8 @@ public interface SyncRunHistoryPort {
 
     void updateRunProgress(long runId, NsiSyncRunUpdate update);
 
+    SyncRunStatus findLatestRunStatus();
+
     void stopRunOnServerShutdown(long runId, NsiSyncRunUpdate update, String message);
 
     int stopRunningRunsAfterPreviousServerStop(String message);
@@ -31,4 +34,16 @@ public interface SyncRunHistoryPort {
                   String filePath,
                   String message,
                   Throwable throwable);
+
+    void addLog(long runId,
+                SyncRunLogLevel level,
+                SyncErrorStage stage,
+                String dictionaryIdentifier,
+                Long gitLinkId,
+                String projectPath,
+                String commitSha,
+                String filePath,
+                String message,
+                Throwable throwable,
+                Map<String, Object> details);
 }

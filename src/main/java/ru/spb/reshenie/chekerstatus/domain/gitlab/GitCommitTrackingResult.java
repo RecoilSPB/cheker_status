@@ -12,6 +12,8 @@ public class GitCommitTrackingResult {
     private final AtomicInteger projectsProcessed = new AtomicInteger();
     private final AtomicInteger commitsProcessed = new AtomicInteger();
     private final AtomicInteger filesProcessed = new AtomicInteger();
+    private final AtomicInteger projectsTotal = new AtomicInteger();
+    private final AtomicInteger projectsChecked = new AtomicInteger();
     private final ConcurrentLinkedQueue<GitSyncError> errors = new ConcurrentLinkedQueue<GitSyncError>();
 
     public int getLinksFound() {
@@ -32,6 +34,26 @@ public class GitCommitTrackingResult {
 
     public void addProjectsProcessed(int projectsProcessed) {
         this.projectsProcessed.addAndGet(projectsProcessed);
+    }
+
+    public int getProjectsTotal() {
+        return projectsTotal.get();
+    }
+
+    public void setProjectsTotal(int projectsTotal) {
+        this.projectsTotal.set(Math.max(0, projectsTotal));
+    }
+
+    public int getProjectsChecked() {
+        return projectsChecked.get();
+    }
+
+    public void incrementProjectsChecked() {
+        this.projectsChecked.incrementAndGet();
+    }
+
+    public void addProjectsChecked(int projectsChecked) {
+        this.projectsChecked.addAndGet(projectsChecked);
     }
 
     public int getCommitsProcessed() {
@@ -89,6 +111,10 @@ public class GitCommitTrackingResult {
         addCommitsProcessed(other.getCommitsProcessed());
         addFilesProcessed(other.getFilesProcessed());
         addProjectsProcessed(other.getProjectsProcessed());
+        addProjectsChecked(other.getProjectsChecked());
+        if (other.getProjectsTotal() > 0) {
+            setProjectsTotal(Math.max(getProjectsTotal(), other.getProjectsTotal()));
+        }
         addErrors(other.getErrors());
     }
 }

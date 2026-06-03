@@ -2,6 +2,7 @@ package ru.spb.reshenie.chekerstatus.application.sync;
 
 import ru.spb.reshenie.chekerstatus.domain.sync.NsiSyncRunUpdate;
 import ru.spb.reshenie.chekerstatus.domain.sync.SyncErrorStage;
+import ru.spb.reshenie.chekerstatus.domain.sync.SyncRunLogLevel;
 import ru.spb.reshenie.chekerstatus.domain.sync.SyncRunStatus;
 import ru.spb.reshenie.chekerstatus.domain.sync.SyncRunType;
 import jakarta.annotation.PreDestroy;
@@ -10,10 +11,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
+import ru.spb.reshenie.chekerstatus.application.live.LiveUpdatePublisher;
 import ru.spb.reshenie.chekerstatus.application.sync.port.SyncRunHistoryPort;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -28,10 +31,12 @@ public class NsiSyncRunService {
             "Синхронизация остановлена: предыдущий запуск сервера завершился до окончания процесса";
 
     private final SyncRunHistoryPort repository;
+    private final LiveUpdatePublisher liveUpdatePublisher;
     private final ConcurrentMap<Long, ActiveSyncRun> activeRuns = new ConcurrentHashMap<Long, ActiveSyncRun>();
 
-    public NsiSyncRunService(SyncRunHistoryPort repository) {
+    public NsiSyncRunService(SyncRunHistoryPort repository, LiveUpdatePublisher liveUpdatePublisher) {
         this.repository = repository;
+        this.liveUpdatePublisher = liveUpdatePublisher;
     }
 
     public long startRun(SyncRunType runType, String dictionaryIdentifier, boolean forceReload) {
@@ -41,27 +46,50 @@ public class NsiSyncRunService {
         payload.put("runType", runType.name());
         long runId = repository.createRun(runType, dictionaryIdentifier, forceReload, payload);
         activeRuns.put(Long.valueOf(runId), new ActiveSyncRun(dictionaryIdentifier));
+        safeAddLog(runId, SyncRunLogLevel.INFO, SyncErrorStage.UNKNOWN, dictionaryIdentifier,
+                null, null, null, null, "Синхронизация запущена", null, payload);
+        publishRunChanged(runId);
         return runId;
     }
 
     public void finishSuccess(long runId, NsiSyncRunUpdate update) {
+        update.setProgressPercent(100);
         repository.finishRun(runId, SyncRunStatus.SUCCESS, update);
         activeRuns.remove(Long.valueOf(runId));
+        safeAddLog(runId, SyncRunLogLevel.INFO, SyncErrorStage.UNKNOWN, null,
+                null, null, null, null, "Синхронизация завершена успешно", null, summaryDetails(update));
+        publishRunChanged(runId);
     }
 
     public void finishPartial(long runId, NsiSyncRunUpdate update) {
+        update.setProgressPercent(100);
         repository.finishRun(runId, SyncRunStatus.PARTIAL, update);
         activeRuns.remove(Long.valueOf(runId));
+        safeAddLog(runId, SyncRunLogLevel.WARN, SyncErrorStage.UNKNOWN, null,
+                null, null, null, null, "Синхронизация завершена частично", null, summaryDetails(update));
+        publishRunChanged(runId);
     }
 
     public void finishFailed(long runId, NsiSyncRunUpdate update) {
         repository.finishRun(runId, SyncRunStatus.FAILED, update);
         activeRuns.remove(Long.valueOf(runId));
+        safeAddLog(runId, SyncRunLogLevel.ERROR, SyncErrorStage.UNKNOWN, null,
+                null, null, null, null, "Синхронизация завершена с ошибкой", null, summaryDetails(update));
+        publishRunChanged(runId);
     }
 
     public void finishCompleted(long runId, NsiSyncRunUpdate update) {
-        repository.finishRun(runId, update.successStatus(), update);
+        SyncRunStatus status = update.successStatus();
+        update.setProgressPercent(100);
+        repository.finishRun(runId, status, update);
         activeRuns.remove(Long.valueOf(runId));
+        SyncRunLogLevel level = SyncRunStatus.PARTIAL.equals(status) ? SyncRunLogLevel.WARN : SyncRunLogLevel.INFO;
+        String message = SyncRunStatus.PARTIAL.equals(status)
+                ? "Синхронизация завершена частично"
+                : "Синхронизация завершена успешно";
+        safeAddLog(runId, level, SyncErrorStage.UNKNOWN, null,
+                null, null, null, null, message, null, summaryDetails(update));
+        publishRunChanged(runId);
     }
 
     public void updateProgress(long runId, SyncErrorStage stage, NsiSyncRunUpdate update) {
@@ -70,6 +98,7 @@ public class NsiSyncRunService {
             activeRun.update(stage, update);
         }
         repository.updateRunProgress(runId, update);
+        publishRunChanged(runId);
     }
 
     public void addError(long runId,
@@ -84,8 +113,44 @@ public class NsiSyncRunService {
         try {
             repository.addError(runId, stage, dictionaryIdentifier, gitLinkId, projectPath, commitSha, filePath,
                     message, throwable);
+            publishLogChanged(runId);
         } catch (RuntimeException e) {
             log.warn("Cannot save sync run error: runId={}, stage={}, error={}", runId, stage, e.getMessage());
+        }
+    }
+
+    public void addLog(long runId,
+                       SyncRunLogLevel level,
+                       SyncErrorStage stage,
+                       String dictionaryIdentifier,
+                       Long gitLinkId,
+                       String projectPath,
+                       String commitSha,
+                       String filePath,
+                       String message,
+                       Throwable throwable,
+                       Map<String, Object> details) {
+        repository.addLog(runId, level, stage, dictionaryIdentifier, gitLinkId, projectPath, commitSha, filePath,
+                message, throwable, details);
+        publishLogChanged(runId);
+    }
+
+    public void safeAddLog(long runId,
+                           SyncRunLogLevel level,
+                           SyncErrorStage stage,
+                           String dictionaryIdentifier,
+                           Long gitLinkId,
+                           String projectPath,
+                           String commitSha,
+                           String filePath,
+                           String message,
+                           Throwable throwable,
+                           Map<String, Object> details) {
+        try {
+            addLog(runId, level, stage, dictionaryIdentifier, gitLinkId, projectPath, commitSha, filePath,
+                    message, throwable, details);
+        } catch (RuntimeException e) {
+            log.warn("Cannot save sync run log: runId={}, stage={}, error={}", runId, stage, e.getMessage());
         }
     }
 
@@ -120,6 +185,7 @@ public class NsiSyncRunService {
             int stopped = repository.stopRunningRunsAfterPreviousServerStop(PREVIOUS_SERVER_STOPPED_MESSAGE);
             if (stopped > 0) {
                 log.warn("Marked stale running sync runs as server-stopped: count={}", stopped);
+                liveUpdatePublisher.publish("dashboard.changed");
             }
         } catch (RuntimeException e) {
             log.warn("Cannot mark stale running sync runs as server-stopped: error={}", e.getMessage());
@@ -152,11 +218,46 @@ public class NsiSyncRunService {
                 activeRuns.remove(entry.getKey());
                 log.warn("Marked active sync run as server-stopped: runId={}, stage={}",
                         runId, activeRun.stage);
+                publishRunChanged(runId);
             } catch (RuntimeException e) {
                 log.warn("Cannot mark active sync run as server-stopped: runId={}, error={}",
                         runId, e.getMessage());
             }
         }
+    }
+
+    private void publishRunChanged(long runId) {
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put("syncRunId", Long.valueOf(runId));
+        liveUpdatePublisher.publish("syncRun.changed", payload);
+        liveUpdatePublisher.publish("dashboard.changed", payload);
+    }
+
+    private void publishLogChanged(long runId) {
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put("syncRunId", Long.valueOf(runId));
+        liveUpdatePublisher.publish("syncRun.log.changed", payload);
+        liveUpdatePublisher.publish("dashboard.changed", payload);
+    }
+
+    private Map<String, Object> summaryDetails(NsiSyncRunUpdate update) {
+        if (update == null) {
+            return Collections.emptyMap();
+        }
+        Map<String, Object> details = new LinkedHashMap<String, Object>();
+        details.put("dictionaryVersion", update.getDictionaryVersion());
+        details.put("nsiRowsTotal", Integer.valueOf(update.getNsiRowsTotal()));
+        details.put("nsiRowsInserted", Integer.valueOf(update.getNsiRowsInserted()));
+        details.put("nsiRowsUpdated", Integer.valueOf(update.getNsiRowsUpdated()));
+        details.put("nsiRowsDeactivated", Integer.valueOf(update.getNsiRowsDeactivated()));
+        details.put("gitLinksFound", Integer.valueOf(update.getGitLinksFound()));
+        details.put("gitProjectsProcessed", Integer.valueOf(update.getGitProjectsProcessed()));
+        details.put("gitCommitsProcessed", Integer.valueOf(update.getGitCommitsProcessed()));
+        details.put("gitFilesProcessed", Integer.valueOf(update.getGitFilesProcessed()));
+        details.put("progressPercent", Integer.valueOf(update.getProgressPercent()));
+        details.put("errorCount", Integer.valueOf(update.getErrorCount()));
+        details.put("errorMessage", update.getErrorMessage());
+        return details;
     }
 
     static long durationMs(OffsetDateTime startedAt, OffsetDateTime finishedAt) {

@@ -13,7 +13,9 @@ public class NsiProperties implements NsiSyncSettings {
     private String passportUrlTemplate;
     private String dataUrlTemplate;
     private int pageSize = 100;
+    private int progressGitLinkWeight = 100;
     private long pollFixedDelayMs = 3_600_000L;
+    private long pollInitialDelayMs = 60_000L;
     private boolean trustAllSsl = true;
     private boolean syncOnStartup = true;
     private List<Dictionary> dictionaries = new ArrayList<Dictionary>();
@@ -50,12 +52,28 @@ public class NsiProperties implements NsiSyncSettings {
         this.pageSize = pageSize;
     }
 
+    public int getProgressGitLinkWeight() {
+        return progressGitLinkWeight;
+    }
+
+    public void setProgressGitLinkWeight(int progressGitLinkWeight) {
+        this.progressGitLinkWeight = progressGitLinkWeight;
+    }
+
     public long getPollFixedDelayMs() {
         return pollFixedDelayMs;
     }
 
     public void setPollFixedDelayMs(long pollFixedDelayMs) {
         this.pollFixedDelayMs = pollFixedDelayMs;
+    }
+
+    public long getPollInitialDelayMs() {
+        return pollInitialDelayMs;
+    }
+
+    public void setPollInitialDelayMs(long pollInitialDelayMs) {
+        this.pollInitialDelayMs = pollInitialDelayMs;
     }
 
     public boolean isTrustAllSsl() {

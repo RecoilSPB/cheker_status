@@ -11,12 +11,15 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.server.ResponseStatusException;
-import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import ru.spb.reshenie.chekerstatus.application.nsi.NsiSyncScheduler;
+import ru.spb.reshenie.chekerstatus.domain.sync.DashboardSummary;
 import ru.spb.reshenie.chekerstatus.domain.sync.NsiSyncRunFilter;
+import ru.spb.reshenie.chekerstatus.domain.sync.NsiSyncRunLogFilter;
 import ru.spb.reshenie.chekerstatus.domain.sync.PagedResult;
 import ru.spb.reshenie.chekerstatus.domain.sync.SyncRunStatus;
 import ru.spb.reshenie.chekerstatus.domain.sync.SyncRunType;
+import ru.spb.reshenie.chekerstatus.domain.sync.SyncErrorStage;
+import ru.spb.reshenie.chekerstatus.domain.sync.SyncRunLogLevel;
 
 import java.time.DateTimeException;
 import java.time.LocalDateTime;
@@ -83,7 +86,7 @@ public class UiController {
         PagedResult<?> runs = syncRunRepository.findRuns(filter);
 
         model.addAttribute("active", "dashboard");
-        model.addAttribute("summary", syncRunRepository.dashboardSummary());
+        model.addAttribute("summary", dashboardSummary());
         model.addAttribute("runs", runs);
         model.addAttribute("pageNumbers", pageNumbers(runs));
         model.addAttribute("filter", filter);
@@ -106,15 +109,92 @@ public class UiController {
         }
     }
 
+    @GetMapping("/dashboard/sync-runs/{id}/fragment")
+    public String dashboardRunDetailsFragment(@PathVariable("id") long id, Model model) {
+        try {
+            model.addAttribute("active", "dashboard");
+            model.addAttribute("details", syncRunRepository.findDetails(id));
+            return "sync-run :: run-detail";
+        } catch (EmptyResultDataAccessException e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Sync run not found: " + id, e);
+        }
+    }
+
+    @GetMapping("/dashboard/sync-runs/{id}/logs")
+    public String dashboardRunLogs(@PathVariable("id") long id,
+                                   @RequestParam(name = "page", defaultValue = "0") int page,
+                                   @RequestParam(name = "size", defaultValue = "100") int size,
+                                   @RequestParam(name = "level", required = false) SyncRunLogLevel level,
+                                   @RequestParam(name = "stage", required = false) SyncErrorStage stage,
+                                   Model model) {
+        addRunLogModel(id, page, size, level, stage, model);
+        return "sync-run-log";
+    }
+
+    @GetMapping("/dashboard/sync-runs/{id}/logs/fragment")
+    public String dashboardRunLogsFragment(@PathVariable("id") long id,
+                                           @RequestParam(name = "page", defaultValue = "0") int page,
+                                           @RequestParam(name = "size", defaultValue = "100") int size,
+                                           @RequestParam(name = "level", required = false) SyncRunLogLevel level,
+                                           @RequestParam(name = "stage", required = false) SyncErrorStage stage,
+                                           Model model) {
+        addRunLogModel(id, page, size, level, stage, model);
+        return "sync-run-log :: log-content";
+    }
+
+    @GetMapping("/dashboard/fragments/summary")
+    public String dashboardSummaryFragment(Model model) {
+        model.addAttribute("summary", dashboardSummary());
+        return "dashboard :: summary-stats";
+    }
+
+    @GetMapping("/dashboard/fragments/sync-runs")
+    public String dashboardSyncRunsFragment(@RequestParam(name = "page", defaultValue = "0") int page,
+                                            @RequestParam(name = "size", defaultValue = "20") int size,
+                                            @RequestParam(name = "status", required = false) SyncRunStatus status,
+                                            @RequestParam(name = "runType", required = false) SyncRunType runType,
+                                            @RequestParam(name = "dictionaryIdentifier", required = false) String dictionaryIdentifier,
+                                            @RequestParam(name = "dictionaryVersion", required = false) String dictionaryVersion,
+                                            @RequestParam(name = "dateFrom", required = false)
+                                            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime dateFrom,
+                                            @RequestParam(name = "dateTo", required = false)
+                                            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime dateTo,
+                                            @RequestParam(name = "hasErrors", required = false) Boolean hasErrors,
+                                            @RequestParam(name = "sort", defaultValue = "startedAt") String sort,
+                                            @RequestParam(name = "direction", defaultValue = "desc") String direction,
+                                            @RequestParam(name = "tz", required = false) String timeZone,
+                                            @RequestParam(name = "clientTimeZone", required = false) String clientTimeZone,
+                                            Model model) {
+        ZoneId clientZone = resolveClientZone(clientTimeZone == null ? timeZone : clientTimeZone);
+        NsiSyncRunFilter filter = new NsiSyncRunFilter();
+        filter.setPage(page);
+        filter.setSize(DASHBOARD_SYNC_RUN_PAGE_SIZE);
+        filter.setStatus(status);
+        filter.setRunType(runType);
+        filter.setDictionaryIdentifier(dictionaryIdentifier);
+        filter.setDictionaryVersion(dictionaryVersion);
+        filter.setDateFrom(toOffsetDateTime(dateFrom, clientZone));
+        filter.setDateTo(toOffsetDateTime(dateTo, clientZone));
+        filter.setHasErrors(hasErrors);
+        filter.setSort(sort);
+        filter.setDirection(direction);
+        PagedResult<?> runs = syncRunRepository.findRuns(filter);
+        model.addAttribute("runs", runs);
+        model.addAttribute("pageNumbers", pageNumbers(runs));
+        model.addAttribute("filter", filter);
+        model.addAttribute("dateFromInput", dateFrom);
+        model.addAttribute("dateToInput", dateTo);
+        model.addAttribute("clientTimeZone", clientZone.getId());
+        return "dashboard :: sync-runs-panel";
+    }
+
     @PostMapping("/dashboard/sync-runs")
     public String startDashboardSync(@RequestParam(name = "dictionaryIdentifier", required = false) String dictionaryIdentifier,
-                                     @RequestParam(name = "forceReload", defaultValue = "false") boolean forceReload,
-                                     RedirectAttributes redirectAttributes) {
+                                     @RequestParam(name = "forceReload", defaultValue = "false") boolean forceReload) {
         try {
-            long runId = syncScheduler.startManualSynchronization(dictionaryIdentifier, forceReload);
-            redirectAttributes.addFlashAttribute("message", "Синхронизация запущена, ID " + runId);
+            syncScheduler.startManualSynchronization(dictionaryIdentifier, forceReload);
         } catch (IllegalStateException e) {
-            redirectAttributes.addFlashAttribute("message", e.getMessage());
+            // The dashboard disables the button while a run is active; stale submits can be ignored quietly.
         }
         return "redirect:/dashboard";
     }
@@ -165,6 +245,40 @@ public class UiController {
             return null;
         }
         return value.atZone(clientZone).toOffsetDateTime();
+    }
+
+    private DashboardSummary dashboardSummary() {
+        DashboardSummary summary = syncRunRepository.dashboardSummary();
+        return summary.withScheduler(
+                syncScheduler.getNextAutoRunAt(),
+                syncScheduler.getNextAutoRunDelayMs(),
+                Long.valueOf(syncScheduler.getAutoSyncIntervalMs())
+        );
+    }
+
+    private void addRunLogModel(long id,
+                                int page,
+                                int size,
+                                SyncRunLogLevel level,
+                                SyncErrorStage stage,
+                                Model model) {
+        try {
+            NsiSyncRunLogFilter filter = new NsiSyncRunLogFilter();
+            filter.setPage(page);
+            filter.setSize(size);
+            filter.setLevel(level);
+            filter.setStage(stage);
+            PagedResult<?> logs = syncRunRepository.findLogs(id, filter);
+            model.addAttribute("active", "dashboard");
+            model.addAttribute("run", syncRunRepository.findRun(id));
+            model.addAttribute("logs", logs);
+            model.addAttribute("pageNumbers", pageNumbers(logs));
+            model.addAttribute("filter", filter);
+            model.addAttribute("levels", SyncRunLogLevel.values());
+            model.addAttribute("stages", SyncErrorStage.values());
+        } catch (EmptyResultDataAccessException e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Sync run not found: " + id, e);
+        }
     }
 
     private ZoneId resolveClientZone(String timeZone) {

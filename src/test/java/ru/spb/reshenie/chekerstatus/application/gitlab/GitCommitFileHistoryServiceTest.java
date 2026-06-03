@@ -5,12 +5,14 @@ import ru.spb.reshenie.chekerstatus.domain.gitlab.GitLabCommitDiff;
 import ru.spb.reshenie.chekerstatus.infrastructure.gitlab.GitLabConcurrencyLimiter;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import ru.spb.reshenie.chekerstatus.application.sync.NsiSyncRunService;
 import ru.spb.reshenie.chekerstatus.infrastructure.config.GitLabProperties;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 class GitCommitFileHistoryServiceTest {
 
@@ -24,7 +26,8 @@ class GitCommitFileHistoryServiceTest {
             null,
             null,
             executorService,
-            new GitLabConcurrencyLimiter(properties)
+            new GitLabConcurrencyLimiter(properties),
+            mock(NsiSyncRunService.class)
     );
 
     @AfterEach

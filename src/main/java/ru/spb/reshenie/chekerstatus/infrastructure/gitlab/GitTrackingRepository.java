@@ -2,6 +2,7 @@ package ru.spb.reshenie.chekerstatus.infrastructure.gitlab;
 
 import ru.spb.reshenie.chekerstatus.domain.gitlab.DocumentGitLink;
 import ru.spb.reshenie.chekerstatus.domain.gitlab.DocumentGitLinkCandidate;
+import ru.spb.reshenie.chekerstatus.domain.gitlab.GitLinkRefreshResult;
 import ru.spb.reshenie.chekerstatus.domain.gitlab.GitLabCommit;
 import ru.spb.reshenie.chekerstatus.domain.gitlab.GitLabLink;
 import ru.spb.reshenie.chekerstatus.domain.gitlab.StoredGitLabCommit;
@@ -42,24 +43,34 @@ public class GitTrackingRepository implements GitTrackingRepositoryPort {
     }
 
     @Transactional
-    public List<DocumentGitLink> refreshAndFindActiveLinks(long dictionaryId) {
+    public GitLinkRefreshResult refreshAndFindActiveLinks(long dictionaryId) {
         List<DocumentGitLinkCandidate> candidates = findCandidates(dictionaryId);
         List<String> activeRecordKeys = new ArrayList<String>();
+        int insertedLinks = 0;
+        int updatedLinks = 0;
+        int parseErrors = 0;
 
         for (DocumentGitLinkCandidate candidate : candidates) {
             GitLabLink parsedLink = linkParser.parse(candidate.getGitLink());
             if (parsedLink == null) {
+                parseErrors++;
                 log.warn("Cannot parse GitLab link: recordKey={}, link={}",
                         candidate.getRecordKey(), candidate.getGitLink());
                 continue;
             }
 
-            upsertDocumentLink(dictionaryId, candidate, parsedLink);
+            LinkUpsertResult upsertResult = upsertDocumentLink(dictionaryId, candidate, parsedLink);
+            if (upsertResult.isInserted()) {
+                insertedLinks++;
+            } else {
+                updatedLinks++;
+            }
             activeRecordKeys.add(candidate.getRecordKey());
         }
 
-        markInactiveLinks(dictionaryId, activeRecordKeys);
-        return findActiveLinks(dictionaryId);
+        int deactivatedLinks = markInactiveLinks(dictionaryId, activeRecordKeys);
+        return new GitLinkRefreshResult(findActiveLinks(dictionaryId), insertedLinks, updatedLinks,
+                deactivatedLinks, parseErrors);
     }
 
     @Transactional
@@ -207,10 +218,11 @@ public class GitTrackingRepository implements GitTrackingRepositoryPort {
         );
     }
 
-    private long upsertDocumentLink(long dictionaryId,
-                                    DocumentGitLinkCandidate candidate,
-                                    GitLabLink parsedLink) {
-        return jdbcTemplate.queryForObject(
+    private LinkUpsertResult upsertDocumentLink(long dictionaryId,
+                                                DocumentGitLinkCandidate candidate,
+                                                GitLabLink parsedLink) {
+        boolean inserted = !documentLinkExists(dictionaryId, candidate.getRecordKey());
+        Long id = jdbcTemplate.queryForObject(
                 "INSERT INTO nsi_document_git_link (" +
                         "dictionary_id, nsi_record_id, record_key, document_oid, document_name, " +
                         "git_link, git_host, project_path, tree_ref, active" +
@@ -237,25 +249,35 @@ public class GitTrackingRepository implements GitTrackingRepositoryPort {
                 parsedLink.getProjectPath(),
                 parsedLink.getTreeRef()
         );
+        return new LinkUpsertResult(id == null ? 0L : id.longValue(), inserted);
     }
 
-    private void markInactiveLinks(long dictionaryId, List<String> activeRecordKeys) {
+    private boolean documentLinkExists(long dictionaryId, String recordKey) {
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM nsi_document_git_link WHERE dictionary_id = ? AND record_key = ?",
+                Integer.class,
+                dictionaryId,
+                recordKey
+        );
+        return count != null && count.intValue() > 0;
+    }
+
+    private int markInactiveLinks(long dictionaryId, List<String> activeRecordKeys) {
         if (activeRecordKeys.isEmpty()) {
-            jdbcTemplate.update(
+            return jdbcTemplate.update(
                     "UPDATE nsi_document_git_link SET active = false, updated_at = now() WHERE dictionary_id = ?",
                     dictionaryId
             );
-            return;
         }
 
         String placeholders = joinPlaceholders(activeRecordKeys.size());
         List<Object> args = new ArrayList<Object>();
         args.add(dictionaryId);
         args.addAll(activeRecordKeys);
-        jdbcTemplate.update(
+        return jdbcTemplate.update(
                 "UPDATE nsi_document_git_link " +
                         "SET active = false, updated_at = now() " +
-                        "WHERE dictionary_id = ? AND record_key NOT IN (" + placeholders + ")",
+                        "WHERE dictionary_id = ? AND active = true AND record_key NOT IN (" + placeholders + ")",
                 args.toArray()
         );
     }
@@ -323,5 +345,23 @@ public class GitTrackingRepository implements GitTrackingRepositoryPort {
         }
         String normalized = value.replace('\n', ' ').replace('\r', ' ');
         return normalized.length() > maxLength ? normalized.substring(0, maxLength) : normalized;
+    }
+
+    private static class LinkUpsertResult {
+        private final long id;
+        private final boolean inserted;
+
+        private LinkUpsertResult(long id, boolean inserted) {
+            this.id = id;
+            this.inserted = inserted;
+        }
+
+        public long getId() {
+            return id;
+        }
+
+        public boolean isInserted() {
+            return inserted;
+        }
     }
 }

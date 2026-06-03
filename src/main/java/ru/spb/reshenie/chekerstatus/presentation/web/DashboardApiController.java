@@ -17,7 +17,10 @@ import ru.spb.reshenie.chekerstatus.application.nsi.NsiSyncScheduler;
 import ru.spb.reshenie.chekerstatus.domain.sync.DashboardSummary;
 import ru.spb.reshenie.chekerstatus.domain.sync.NsiSyncRunDetails;
 import ru.spb.reshenie.chekerstatus.domain.sync.NsiSyncRunFilter;
+import ru.spb.reshenie.chekerstatus.domain.sync.NsiSyncRunLogFilter;
 import ru.spb.reshenie.chekerstatus.domain.sync.PagedResult;
+import ru.spb.reshenie.chekerstatus.domain.sync.SyncErrorStage;
+import ru.spb.reshenie.chekerstatus.domain.sync.SyncRunLogLevel;
 import ru.spb.reshenie.chekerstatus.domain.sync.SyncRunStatus;
 import ru.spb.reshenie.chekerstatus.domain.sync.SyncRunType;
 
@@ -37,7 +40,7 @@ public class DashboardApiController {
 
     @GetMapping("/summary")
     public DashboardSummary summary() {
-        return syncRunRepository.dashboardSummary();
+        return dashboardSummary();
     }
 
     @GetMapping("/sync-runs")
@@ -73,6 +76,25 @@ public class DashboardApiController {
     public NsiSyncRunDetails syncRunDetails(@PathVariable("id") long id) {
         try {
             return syncRunRepository.findDetails(id);
+        } catch (EmptyResultDataAccessException e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Sync run not found: " + id, e);
+        }
+    }
+
+    @GetMapping("/sync-runs/{id}/logs")
+    public PagedResult<?> syncRunLogs(@PathVariable("id") long id,
+                                      @RequestParam(name = "page", defaultValue = "0") int page,
+                                      @RequestParam(name = "size", defaultValue = "100") int size,
+                                      @RequestParam(name = "level", required = false) SyncRunLogLevel level,
+                                      @RequestParam(name = "stage", required = false) SyncErrorStage stage) {
+        try {
+            syncRunRepository.findRun(id);
+            NsiSyncRunLogFilter filter = new NsiSyncRunLogFilter();
+            filter.setPage(page);
+            filter.setSize(size);
+            filter.setLevel(level);
+            filter.setStage(stage);
+            return syncRunRepository.findLogs(id, filter);
         } catch (EmptyResultDataAccessException e) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Sync run not found: " + id, e);
         }
@@ -130,5 +152,14 @@ public class DashboardApiController {
         public String getStatus() {
             return status;
         }
+    }
+
+    private DashboardSummary dashboardSummary() {
+        DashboardSummary summary = syncRunRepository.dashboardSummary();
+        return summary.withScheduler(
+                syncScheduler.getNextAutoRunAt(),
+                syncScheduler.getNextAutoRunDelayMs(),
+                Long.valueOf(syncScheduler.getAutoSyncIntervalMs())
+        );
     }
 }

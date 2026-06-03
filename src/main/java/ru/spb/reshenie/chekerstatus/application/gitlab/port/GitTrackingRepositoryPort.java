@@ -1,6 +1,7 @@
 package ru.spb.reshenie.chekerstatus.application.gitlab.port;
 
 import ru.spb.reshenie.chekerstatus.domain.gitlab.DocumentGitLink;
+import ru.spb.reshenie.chekerstatus.domain.gitlab.GitLinkRefreshResult;
 import ru.spb.reshenie.chekerstatus.domain.gitlab.GitLabCommit;
 import ru.spb.reshenie.chekerstatus.domain.gitlab.StoredGitLabCommit;
 
@@ -8,7 +9,7 @@ import java.util.List;
 
 public interface GitTrackingRepositoryPort {
 
-    List<DocumentGitLink> refreshAndFindActiveLinks(long dictionaryId);
+    GitLinkRefreshResult refreshAndFindActiveLinks(long dictionaryId);
 
     int saveCommits(long documentGitLinkId, List<GitLabCommit> commits);
 

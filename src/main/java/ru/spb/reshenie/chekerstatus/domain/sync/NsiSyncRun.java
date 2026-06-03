@@ -21,6 +21,7 @@ public class NsiSyncRun {
     private final int gitProjectsProcessed;
     private final int gitCommitsProcessed;
     private final int gitFilesProcessed;
+    private final int progressPercent;
     private final int errorCount;
     private final String errorMessage;
 
@@ -43,6 +44,32 @@ public class NsiSyncRun {
                       int gitFilesProcessed,
                       int errorCount,
                       String errorMessage) {
+        this(id, runType, status, dictionaryIdentifier, dictionaryVersion, startedAt, finishedAt, durationMs,
+                forceReload, nsiRowsTotal, nsiRowsInserted, nsiRowsUpdated, nsiRowsDeactivated,
+                gitLinksFound, gitProjectsProcessed, gitCommitsProcessed, gitFilesProcessed,
+                defaultProgressPercent(status), errorCount, errorMessage);
+    }
+
+    public NsiSyncRun(long id,
+                      SyncRunType runType,
+                      SyncRunStatus status,
+                      String dictionaryIdentifier,
+                      String dictionaryVersion,
+                      OffsetDateTime startedAt,
+                      OffsetDateTime finishedAt,
+                      Long durationMs,
+                      boolean forceReload,
+                      int nsiRowsTotal,
+                      int nsiRowsInserted,
+                      int nsiRowsUpdated,
+                      int nsiRowsDeactivated,
+                      int gitLinksFound,
+                      int gitProjectsProcessed,
+                      int gitCommitsProcessed,
+                      int gitFilesProcessed,
+                      int progressPercent,
+                      int errorCount,
+                      String errorMessage) {
         this.id = id;
         this.runType = runType;
         this.status = status;
@@ -60,6 +87,7 @@ public class NsiSyncRun {
         this.gitProjectsProcessed = gitProjectsProcessed;
         this.gitCommitsProcessed = gitCommitsProcessed;
         this.gitFilesProcessed = gitFilesProcessed;
+        this.progressPercent = normalizeProgressPercent(progressPercent);
         this.errorCount = errorCount;
         this.errorMessage = errorMessage;
     }
@@ -132,6 +160,14 @@ public class NsiSyncRun {
         return gitFilesProcessed;
     }
 
+    public int getProgressPercent() {
+        return progressPercent;
+    }
+
+    public String getProgressLabel() {
+        return progressPercent + "%";
+    }
+
     public int getErrorCount() {
         return errorCount;
     }
@@ -189,5 +225,16 @@ public class NsiSyncRun {
             return "status-pending";
         }
         return "status-muted";
+    }
+
+    private static int defaultProgressPercent(SyncRunStatus status) {
+        if (SyncRunStatus.SUCCESS.equals(status) || SyncRunStatus.PARTIAL.equals(status)) {
+            return 100;
+        }
+        return 0;
+    }
+
+    private static int normalizeProgressPercent(int progressPercent) {
+        return Math.max(0, Math.min(100, progressPercent));
     }
 }

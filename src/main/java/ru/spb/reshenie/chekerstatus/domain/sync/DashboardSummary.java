@@ -1,5 +1,7 @@
 package ru.spb.reshenie.chekerstatus.domain.sync;
 
+import java.time.OffsetDateTime;
+
 public class DashboardSummary {
 
     private final String currentStatus;
@@ -12,6 +14,9 @@ public class DashboardSummary {
     private final long gitLinksWithErrors;
     private final long totalCommits;
     private final long totalFiles;
+    private final OffsetDateTime nextAutoRunAt;
+    private final Long nextAutoRunDelayMs;
+    private final Long autoSyncIntervalMs;
 
     public DashboardSummary(String currentStatus,
                             NsiSyncRun lastRun,
@@ -23,6 +28,24 @@ public class DashboardSummary {
                             long gitLinksWithErrors,
                             long totalCommits,
                             long totalFiles) {
+        this(currentStatus, lastRun, lastSuccessfulRun, dictionaryIdentifier, dictionaryVersion,
+                totalRecords, totalGitLinks, gitLinksWithErrors, totalCommits, totalFiles,
+                null, null, null);
+    }
+
+    public DashboardSummary(String currentStatus,
+                            NsiSyncRun lastRun,
+                            NsiSyncRun lastSuccessfulRun,
+                            String dictionaryIdentifier,
+                            String dictionaryVersion,
+                            long totalRecords,
+                            long totalGitLinks,
+                            long gitLinksWithErrors,
+                            long totalCommits,
+                            long totalFiles,
+                            OffsetDateTime nextAutoRunAt,
+                            Long nextAutoRunDelayMs,
+                            Long autoSyncIntervalMs) {
         this.currentStatus = currentStatus;
         this.lastRun = lastRun;
         this.lastSuccessfulRun = lastSuccessfulRun;
@@ -33,6 +56,29 @@ public class DashboardSummary {
         this.gitLinksWithErrors = gitLinksWithErrors;
         this.totalCommits = totalCommits;
         this.totalFiles = totalFiles;
+        this.nextAutoRunAt = nextAutoRunAt;
+        this.nextAutoRunDelayMs = nextAutoRunDelayMs;
+        this.autoSyncIntervalMs = autoSyncIntervalMs;
+    }
+
+    public DashboardSummary withScheduler(OffsetDateTime nextAutoRunAt,
+                                          Long nextAutoRunDelayMs,
+                                          Long autoSyncIntervalMs) {
+        return new DashboardSummary(
+                currentStatus,
+                lastRun,
+                lastSuccessfulRun,
+                dictionaryIdentifier,
+                dictionaryVersion,
+                totalRecords,
+                totalGitLinks,
+                gitLinksWithErrors,
+                totalCommits,
+                totalFiles,
+                nextAutoRunAt,
+                nextAutoRunDelayMs,
+                autoSyncIntervalMs
+        );
     }
 
     public String getCurrentStatus() {
@@ -73,5 +119,17 @@ public class DashboardSummary {
 
     public long getTotalFiles() {
         return totalFiles;
+    }
+
+    public OffsetDateTime getNextAutoRunAt() {
+        return nextAutoRunAt;
+    }
+
+    public Long getNextAutoRunDelayMs() {
+        return nextAutoRunDelayMs;
+    }
+
+    public Long getAutoSyncIntervalMs() {
+        return autoSyncIntervalMs;
     }
 }

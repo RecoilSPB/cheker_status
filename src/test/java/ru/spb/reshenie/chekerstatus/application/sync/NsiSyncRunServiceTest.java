@@ -2,26 +2,31 @@ package ru.spb.reshenie.chekerstatus.application.sync;
 
 import ru.spb.reshenie.chekerstatus.domain.sync.NsiSyncRunUpdate;
 import ru.spb.reshenie.chekerstatus.domain.sync.SyncErrorStage;
+import ru.spb.reshenie.chekerstatus.domain.sync.SyncRunLogLevel;
 import ru.spb.reshenie.chekerstatus.domain.sync.SyncRunStatus;
 import ru.spb.reshenie.chekerstatus.domain.sync.SyncRunType;
+import ru.spb.reshenie.chekerstatus.application.live.LiveUpdatePublisher;
 import ru.spb.reshenie.chekerstatus.infrastructure.persistence.NsiSyncRunRepository;
 import org.junit.jupiter.api.Test;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.Collections;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class NsiSyncRunServiceTest {
 
     private final NsiSyncRunRepository repository = mock(NsiSyncRunRepository.class);
-    private final NsiSyncRunService service = new NsiSyncRunService(repository);
+    private final LiveUpdatePublisher liveUpdatePublisher = mock(LiveUpdatePublisher.class);
+    private final NsiSyncRunService service = new NsiSyncRunService(repository, liveUpdatePublisher);
 
     @Test
     void calculatesDurationMs() {
@@ -39,7 +44,10 @@ class NsiSyncRunServiceTest {
 
         service.finishCompleted(10L, update);
 
+        assertThat(update.getProgressPercent()).isEqualTo(100);
         verify(repository).finishRun(10L, SyncRunStatus.SUCCESS, update);
+        verify(liveUpdatePublisher).publish(eq("syncRun.changed"), anyMap());
+        verify(liveUpdatePublisher, atLeastOnce()).publish(eq("dashboard.changed"), anyMap());
     }
 
     @Test
@@ -50,6 +58,18 @@ class NsiSyncRunServiceTest {
         service.finishCompleted(11L, update);
 
         verify(repository).finishRun(11L, SyncRunStatus.PARTIAL, update);
+        assertThat(update.getProgressPercent()).isEqualTo(100);
+    }
+
+    @Test
+    void clampsProgressPercent() {
+        NsiSyncRunUpdate update = new NsiSyncRunUpdate();
+
+        update.setProgressPercent(140);
+        assertThat(update.getProgressPercent()).isEqualTo(100);
+
+        update.setProgressPercent(-20);
+        assertThat(update.getProgressPercent()).isZero();
     }
 
     @Test
@@ -100,5 +120,27 @@ class NsiSyncRunServiceTest {
         verify(repository).stopRunningRunsAfterPreviousServerStop(
                 "Синхронизация остановлена: предыдущий запуск сервера завершился до окончания процесса"
         );
+    }
+
+    @Test
+    void publishesLiveUpdateWhenLogIsSaved() {
+        service.safeAddLog(20L, SyncRunLogLevel.INFO, SyncErrorStage.NSI_DATA, "identifier",
+                null, null, null, null, "message", null, Collections.<String, Object>emptyMap());
+
+        verify(repository).addLog(
+                eq(20L),
+                eq(SyncRunLogLevel.INFO),
+                eq(SyncErrorStage.NSI_DATA),
+                eq("identifier"),
+                eq(null),
+                eq(null),
+                eq(null),
+                eq(null),
+                eq("message"),
+                eq(null),
+                anyMap()
+        );
+        verify(liveUpdatePublisher).publish(eq("syncRun.log.changed"), anyMap());
+        verify(liveUpdatePublisher).publish(eq("dashboard.changed"), anyMap());
     }
 }

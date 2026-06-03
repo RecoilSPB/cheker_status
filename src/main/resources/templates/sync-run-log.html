@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="'Журнал запуска #' + ${run.id} + ' - NSI Git Monitor'">Журнал запуска</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<div class="app">
+    <aside class="sidebar">
+        <div class="brand"><span class="brand-mark">N</span><span>NSI Git Monitor</span></div>
+        <nav class="nav">
+            <a th:classappend="${active == 'dashboard'} ? 'active' : ''" th:href="@{/dashboard}">Дашборд</a>
+            <a th:classappend="${active == 'documents'} ? 'active' : ''" th:href="@{/documents}">Документы</a>
+            <a th:classappend="${active == 'commits'} ? 'active' : ''" th:href="@{/commits}">Коммиты</a>
+            <a th:classappend="${active == 'fileChanges'} ? 'active' : ''" th:href="@{/file-changes}">История файлов</a>
+            <a th:href="@{/documents(status='ERROR')}">Ошибки</a>
+        </nav>
+    </aside>
+    <main class="main">
+        <div class="topbar">
+            <div>
+                <h1 class="page-title" th:text="'Журнал запуска #' + ${run.id}">Журнал запуска</h1>
+                <div class="page-subtitle">
+                    <time th:if="${run.startedAt != null}"
+                          th:attr="datetime=${run.startedAt},data-utc=${run.startedAt}"
+                          th:text="${@uiTimeFormatters.formatUtcDateTime(run.startedAt)}">date</time>
+                    <span th:text="${' · ' + run.displayStatus}"> · статус</span>
+                </div>
+            </div>
+            <div class="actions">
+                <a class="button secondary" th:href="@{/dashboard}">К дашборду</a>
+                <a class="button secondary" th:href="@{/dashboard/sync-runs/{id}(id=${run.id})}">Детали запуска</a>
+            </div>
+        </div>
+
+        <section class="panel"
+                 id="sync-run-log"
+                 th:fragment="log-content"
+                 th:attr="data-sync-run-id=${run.id},data-run-status=${run.status.name()},data-live-fragment-url=@{/dashboard/sync-runs/{id}/logs/fragment(id=${run.id},page=${logs.page},size=${logs.size},level=${filter.level},stage=${filter.stage})}">
+            <div class="panel-header">
+                <div class="panel-title">Журнал действий</div>
+                <div class="muted">
+                    <span th:text="${logs.totalElements}">0</span> записей,
+                    страница <span th:text="${logs.page + 1}">1</span> из <span th:text="${logs.totalPages > 0 ? logs.totalPages : 1}">1</span>
+                </div>
+            </div>
+
+            <form class="filters" th:action="@{/dashboard/sync-runs/{id}/logs(id=${run.id})}" method="get">
+                <label>
+                    <span>Уровень</span>
+                    <select name="level">
+                        <option value="">Все</option>
+                        <option th:each="item : ${levels}"
+                                th:value="${item}"
+                                th:text="${item}"
+                                th:selected="${filter.level == item}">INFO</option>
+                    </select>
+                </label>
+                <label>
+                    <span>Этап</span>
+                    <select name="stage">
+                        <option value="">Все</option>
+                        <option th:each="item : ${stages}"
+                                th:value="${item}"
+                                th:text="${item}"
+                                th:selected="${filter.stage == item}">NSI_DATA</option>
+                    </select>
+                </label>
+                <input type="hidden" name="page" value="0">
+                <input type="hidden" name="size" th:value="${logs.size}">
+                <button class="button" type="submit">Применить</button>
+            </form>
+
+            <div class="table-scroll">
+                <table class="table">
+                    <thead>
+                    <tr>
+                        <th>Время</th>
+                        <th>Уровень</th>
+                        <th>Этап</th>
+                        <th>Сообщение</th>
+                        <th>Контекст</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="log : ${logs.content}">
+                        <td class="muted">
+                            <time th:if="${log.createdAt != null}"
+                                  th:attr="datetime=${log.createdAt},data-utc=${log.createdAt}"
+                                  th:text="${@uiTimeFormatters.formatUtcDateTime(log.createdAt)}">date</time>
+                        </td>
+                        <td><span class="status" th:classappend="${log.levelCss}" th:text="${log.level}">INFO</span></td>
+                        <td class="mono" th:text="${log.stage}">stage</td>
+                        <td th:text="${log.message}">message</td>
+                        <td>
+                            <div class="technical" th:if="${log.projectPath != null}" th:text="'project: ' + ${log.projectPath}">project</div>
+                            <div class="technical" th:if="${log.commitSha != null}" th:text="'commit: ' + ${log.commitSha}">commit</div>
+                            <div class="technical" th:if="${log.filePath != null}" th:text="'file: ' + ${log.filePath}">file</div>
+                            <div class="technical" th:each="detail : ${log.details}"
+                                 th:text="${detail.key + ': ' + detail.value}">detail</div>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="empty" th:if="${#lists.isEmpty(logs.content)}">Журнал пока пуст</div>
+            <div class="pagination" th:if="${logs.totalPages > 1}">
+                <a class="button secondary"
+                   th:if="${logs.hasPrevious()}"
+                   th:href="@{/dashboard/sync-runs/{id}/logs(id=${run.id},page=${logs.page - 1},size=${logs.size},level=${filter.level},stage=${filter.stage})}">Назад</a>
+                <div class="page-links">
+                    <a class="page-link"
+                       th:each="pageNumber : ${pageNumbers}"
+                       th:classappend="${pageNumber == logs.page} ? 'active' : ''"
+                       th:attr="aria-current=${pageNumber == logs.page ? 'page' : null}"
+                       th:href="@{/dashboard/sync-runs/{id}/logs(id=${run.id},page=${pageNumber},size=${logs.size},level=${filter.level},stage=${filter.stage})}"
+                       th:text="${pageNumber + 1}">1</a>
+                </div>
+                <a class="button secondary"
+                   th:if="${logs.hasNext()}"
+                   th:href="@{/dashboard/sync-runs/{id}/logs(id=${run.id},page=${logs.page + 1},size=${logs.size},level=${filter.level},stage=${filter.stage})}">Вперед</a>
+            </div>
+        </section>
+    </main>
+</div>
+<script th:src="@{/js/client-date-format.js}"></script>
+<script th:src="@{/js/live-updates.js}"></script>
+</body>
+</html>

@@ -10,6 +10,7 @@ import ru.spb.reshenie.chekerstatus.infrastructure.gitlab.GitLabConcurrencyLimit
 import ru.spb.reshenie.chekerstatus.infrastructure.gitlab.GitTrackingRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import ru.spb.reshenie.chekerstatus.application.sync.NsiSyncRunService;
 import ru.spb.reshenie.chekerstatus.infrastructure.config.GitLabProperties;
 
 import java.util.Collections;
@@ -45,7 +46,7 @@ class GitLabVirtualThreadSyncExecutorTest {
         when(gitLabClient.fetchCommitsUntilKnown(failedDocument, null)).thenThrow(new GitLabClientException("boom"));
         when(gitLabClient.fetchCommitsUntilKnown(okDocument, null)).thenReturn(Collections.singletonList(commit));
         when(repository.saveCommits(okDocument.getId(), Collections.singletonList(commit))).thenReturn(1);
-        when(fileHistoryService.synchronizeDocumentFiles(okDocument))
+        when(fileHistoryService.synchronizeDocumentFiles(okDocument, null, null))
                 .thenReturn(new GitFileHistorySyncResult(1, 2, 0, 0, null));
         doThrow(new IllegalStateException("marker write failed"))
                 .when(repository).markSyncError(failedDocument.getId(), "boom");
@@ -57,19 +58,20 @@ class GitLabVirtualThreadSyncExecutorTest {
                     repository,
                     fileHistoryService,
                     executorService,
-                    limiter
+                    limiter,
+                    mock(NsiSyncRunService.class)
             );
 
             GitCommitTrackingResult result = syncExecutor.synchronizeDocuments(
                     java.util.Arrays.asList(failedDocument, okDocument)
             );
 
-            assertThat(result.getProjectsProcessed()).isEqualTo(2);
+            assertThat(result.getProjectsProcessed()).isEqualTo(1);
             assertThat(result.getCommitsProcessed()).isEqualTo(1);
             assertThat(result.getFilesProcessed()).isEqualTo(2);
             assertThat(result.getErrorCount()).isEqualTo(1);
             verify(repository).saveCommits(okDocument.getId(), Collections.singletonList(commit));
-            verify(fileHistoryService).synchronizeDocumentFiles(okDocument);
+            verify(fileHistoryService).synchronizeDocumentFiles(okDocument, null, null);
         } finally {
             executorService.shutdownNow();
         }
@@ -89,7 +91,7 @@ class GitLabVirtualThreadSyncExecutorTest {
         when(repository.findLatestStoredCommitSha(document.getId())).thenReturn("known-commit");
         when(gitLabClient.fetchCommitsUntilKnown(document, "known-commit")).thenReturn(Collections.emptyList());
         when(repository.saveCommits(document.getId(), Collections.emptyList())).thenReturn(0);
-        when(fileHistoryService.synchronizeDocumentFiles(document)).thenReturn(GitFileHistorySyncResult.disabled());
+        when(fileHistoryService.synchronizeDocumentFiles(document, null, null)).thenReturn(GitFileHistorySyncResult.disabled());
 
         try {
             GitLabVirtualThreadSyncExecutor syncExecutor = new GitLabVirtualThreadSyncExecutor(
@@ -98,7 +100,8 @@ class GitLabVirtualThreadSyncExecutorTest {
                     repository,
                     fileHistoryService,
                     executorService,
-                    limiter
+                    limiter,
+                    mock(NsiSyncRunService.class)
             );
 
             GitCommitTrackingResult result = syncExecutor.synchronizeDocumentsSequentially(
@@ -109,7 +112,7 @@ class GitLabVirtualThreadSyncExecutorTest {
             assertThat(result.getCommitsProcessed()).isZero();
             assertThat(result.getFilesProcessed()).isZero();
             verify(gitLabClient).fetchCommitsUntilKnown(document, "known-commit");
-            verify(fileHistoryService).synchronizeDocumentFiles(document);
+            verify(fileHistoryService).synchronizeDocumentFiles(document, null, null);
         } finally {
             executorService.shutdownNow();
         }
