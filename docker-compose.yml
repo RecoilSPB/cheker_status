@@ -29,8 +29,9 @@ services:
       APP_USERNAME: ${APP_USERNAME:-admin}
       APP_PASSWORD: ${APP_PASSWORD:?Set APP_PASSWORD before starting the app}
       NSI_USER_KEY: ${NSI_USER_KEY:?Set NSI_USER_KEY before starting the app}
-      GITLAB_TOKEN: ${GITLAB_TOKEN:-}
+      GITLAB_TOKEN: ${GITLAB_TOKEN:?Set GITLAB_TOKEN before starting the app}
       NSI_TRUST_ALL_SSL: ${NSI_TRUST_ALL_SSL:-false}
+      NSI_SYNC_ON_STARTUP: ${NSI_SYNC_ON_STARTUP:?Set NSI_SYNC_ON_STARTUP before starting the app}
     ports:
       - "8080:8080"
 

@@ -38,15 +38,25 @@
         <section class="stats dashboard-stats">
             <div class="stat">
                 <div class="stat-label">Текущий статус</div>
-                <div class="stat-value" th:text="${summary.currentStatus == 'RUNNING' ? 'Выполняется' : (summary.currentStatus == 'FAILED' ? 'Ошибка' : 'Ожидание')}">Ожидание</div>
+                <div class="stat-value" th:text="${summary.currentStatus == 'RUNNING' ? 'Выполняется' : (summary.currentStatus == 'FAILED' ? 'Ошибка' : (summary.currentStatus == 'SERVER_STOPPED' ? 'Остановка сервера' : 'Ожидание'))}">Ожидание</div>
             </div>
             <div class="stat">
                 <div class="stat-label">Последний запуск</div>
-                <div class="stat-value stat-small" th:text="${summary.lastRun != null ? summary.lastRun.startedAt : 'нет данных'}">нет данных</div>
+                <div class="stat-value stat-small">
+                    <time th:if="${summary.lastRun != null}"
+                          th:attr="datetime=${summary.lastRun.startedAt},data-utc=${summary.lastRun.startedAt}"
+                          th:text="${@uiTimeFormatters.formatUtcDateTime(summary.lastRun.startedAt)}">date</time>
+                    <span th:if="${summary.lastRun == null}">нет данных</span>
+                </div>
             </div>
             <div class="stat">
                 <div class="stat-label">Последний успешный</div>
-                <div class="stat-value stat-small" th:text="${summary.lastSuccessfulRun != null ? summary.lastSuccessfulRun.startedAt : 'нет данных'}">нет данных</div>
+                <div class="stat-value stat-small">
+                    <time th:if="${summary.lastSuccessfulRun != null}"
+                          th:attr="datetime=${summary.lastSuccessfulRun.startedAt},data-utc=${summary.lastSuccessfulRun.startedAt}"
+                          th:text="${@uiTimeFormatters.formatUtcDateTime(summary.lastSuccessfulRun.startedAt)}">date</time>
+                    <span th:if="${summary.lastSuccessfulRun == null}">нет данных</span>
+                </div>
             </div>
             <div class="stat">
                 <div class="stat-label">Версия НСИ</div>
@@ -56,33 +66,106 @@
                 <div class="stat-label">Записи НСИ</div>
                 <div class="stat-value" th:text="${summary.totalRecords}">0</div>
             </div>
-            <div class="stat">
-                <div class="stat-label">GitLab-ссылки</div>
-                <div class="stat-value" th:text="${summary.totalGitLinks}">0</div>
-            </div>
-            <div class="stat">
-                <div class="stat-label">Ссылки с ошибками</div>
-                <div class="stat-value" th:text="${summary.gitLinksWithErrors}">0</div>
-            </div>
-            <div class="stat">
-                <div class="stat-label">Коммиты</div>
-                <div class="stat-value" th:text="${summary.totalCommits}">0</div>
-            </div>
-            <div class="stat">
-                <div class="stat-label">Файлы истории</div>
-                <div class="stat-value" th:text="${summary.totalFiles}">0</div>
-            </div>
         </section>
 
-        <section class="panel filter-panel">
+        <details class="panel secondary-metrics">
+            <summary class="metrics-summary">
+                <span class="panel-title">Доп. метрики</span>
+                <span class="muted">GitLab-ссылки, ошибки, коммиты и файлы истории</span>
+            </summary>
+            <div class="metrics-strip">
+                <div class="metric-chip" title="Всего найденных GitLab-ссылок">
+                    <span>GitLab-ссылки</span>
+                    <strong th:text="${summary.totalGitLinks}">0</strong>
+                </div>
+                <div class="metric-chip" title="GitLab-ссылки с ошибками синхронизации">
+                    <span>Ссылки с ошибками</span>
+                    <strong th:text="${summary.gitLinksWithErrors}">0</strong>
+                </div>
+                <div class="metric-chip" title="Новые обработанные коммиты">
+                    <span>Коммиты</span>
+                    <strong th:text="${summary.totalCommits}">0</strong>
+                </div>
+                <div class="metric-chip" title="Файлы истории GitLab">
+                    <span>Файлы истории</span>
+                    <strong th:text="${summary.totalFiles}">0</strong>
+                </div>
+            </div>
+        </details>
+
+        <details class="panel filter-panel"
+                 th:with="hasDateRange=${dateFromInput != null or dateToInput != null},
+                          hasActiveFilters=${filter.status != null
+                              or filter.runType != null
+                              or !#strings.isEmpty(filter.dictionaryIdentifier)
+                              or !#strings.isEmpty(filter.dictionaryVersion)
+                              or dateFromInput != null
+                              or dateToInput != null
+                              or filter.hasErrors != null
+                              or filter.sort != 'startedAt'
+                              or filter.direction != 'desc'}">
+            <summary class="filter-summary">
+                <span class="button secondary filter-toggle">Изменить фильтры</span>
+                <span class="active-filters" th:if="${hasActiveFilters}">
+                    <span class="filter-chip"
+                          th:if="${hasDateRange}"
+                          th:title="${'С: ' + (dateFromInput != null ? @uiTimeFormatters.formatLocalDateTime(dateFromInput) : 'не задано') + ', По: ' + (dateToInput != null ? @uiTimeFormatters.formatLocalDateTime(dateToInput) : 'не задано')}">
+                        <span>Период</span>
+                        <strong th:text="${(dateFromInput != null ? @uiTimeFormatters.formatLocalDateTime(dateFromInput) : '...') + ' - ' + (dateToInput != null ? @uiTimeFormatters.formatLocalDateTime(dateToInput) : '...')}">период</strong>
+                    </span>
+                    <span class="filter-chip"
+                          th:if="${filter.status != null}"
+                          th:title="${'Статус: ' + filter.status}">
+                        <span>Статус</span>
+                        <strong th:text="${filter.status.name() == 'RUNNING' ? 'Выполняется' : (filter.status.name() == 'SUCCESS' ? 'Успешно' : (filter.status.name() == 'FAILED' ? 'Ошибка' : (filter.status.name() == 'SERVER_STOPPED' ? 'Остановка сервера' : 'Частично выполнено')))}">Статус</strong>
+                    </span>
+                    <span class="filter-chip"
+                          th:if="${filter.runType != null}"
+                          th:title="${'Тип: ' + filter.runType}">
+                        <span>Тип</span>
+                        <strong th:text="${filter.runType.name() == 'AUTO' ? 'Автоматический' : (filter.runType.name() == 'MANUAL' ? 'Ручной' : (filter.runType.name() == 'WEBHOOK' ? 'Webhook' : 'Повтор'))}">Тип</strong>
+                    </span>
+                    <span class="filter-chip"
+                          th:if="${!#strings.isEmpty(filter.dictionaryIdentifier)}"
+                          th:title="${'Идентификатор: ' + filter.dictionaryIdentifier}">
+                        <span>Идентификатор</span>
+                        <strong th:text="${filter.dictionaryIdentifier}">identifier</strong>
+                    </span>
+                    <span class="filter-chip"
+                          th:if="${!#strings.isEmpty(filter.dictionaryVersion)}"
+                          th:title="${'Версия: ' + filter.dictionaryVersion}">
+                        <span>Версия</span>
+                        <strong th:text="${filter.dictionaryVersion}">version</strong>
+                    </span>
+                    <span class="filter-chip"
+                          th:if="${filter.hasErrors != null}"
+                          th:title="${'Ошибки: ' + (filter.hasErrors ? 'есть' : 'нет')}">
+                        <span>Ошибки</span>
+                        <strong th:text="${filter.hasErrors ? 'Есть' : 'Нет'}">Есть</strong>
+                    </span>
+                    <span class="filter-chip"
+                          th:if="${filter.sort != 'startedAt'}"
+                          th:title="${'Сортировка: ' + filter.sort}">
+                        <span>Сортировка</span>
+                        <strong th:text="${filter.sort == 'status' ? 'Статус' : (filter.sort == 'duration' ? 'Длительность' : (filter.sort == 'errorCount' ? 'Ошибки' : 'Дата старта'))}">Дата старта</strong>
+                    </span>
+                    <span class="filter-chip"
+                          th:if="${filter.direction != 'desc'}"
+                          th:title="${'Порядок: ' + filter.direction}">
+                        <span>Порядок</span>
+                        <strong th:text="${filter.direction == 'asc' ? 'Старые сверху' : 'Новые сверху'}">Новые сверху</strong>
+                    </span>
+                </span>
+                <span class="muted" th:if="${!hasActiveFilters}">Фильтры не заданы</span>
+            </summary>
             <form class="filters" th:action="@{/dashboard}" method="get">
                 <label>
                     <span>С</span>
-                    <input type="datetime-local" name="dateFrom">
+                    <input type="datetime-local" name="dateFrom" th:value="${dateFromInput}">
                 </label>
                 <label>
                     <span>По</span>
-                    <input type="datetime-local" name="dateTo">
+                    <input type="datetime-local" name="dateTo" th:value="${dateToInput}">
                 </label>
                 <label>
                     <span>Статус</span>
@@ -90,7 +173,7 @@
                         <option value="">Все</option>
                         <option th:each="item : ${statuses}"
                                 th:value="${item}"
-                                th:text="${item.name() == 'RUNNING' ? 'Выполняется' : (item.name() == 'SUCCESS' ? 'Успешно' : (item.name() == 'FAILED' ? 'Ошибка' : 'Частично выполнено'))}"
+                                th:text="${item.name() == 'RUNNING' ? 'Выполняется' : (item.name() == 'SUCCESS' ? 'Успешно' : (item.name() == 'FAILED' ? 'Ошибка' : (item.name() == 'SERVER_STOPPED' ? 'Остановка сервера' : 'Частично выполнено')))}"
                                 th:selected="${filter.status == item}">SUCCESS</option>
                     </select>
                 </label>
@@ -138,9 +221,11 @@
                 </label>
                 <input type="hidden" name="page" value="0">
                 <input type="hidden" name="size" th:value="${filter.size}">
+                <input type="hidden" name="tz" th:value="${clientTimeZone}">
+                <input type="hidden" name="clientTimeZone" th:value="${clientTimeZone}">
                 <button class="button" type="submit">Применить</button>
             </form>
-        </section>
+        </details>
 
         <section class="panel">
             <div class="panel-header">
@@ -154,7 +239,6 @@
                 <table class="table">
                     <thead>
                     <tr>
-                        <th>ID</th>
                         <th>Начало</th>
                         <th>Окончание</th>
                         <th>Длительность</th>
@@ -170,16 +254,27 @@
                         <th>Проекты</th>
                         <th>Коммиты</th>
                         <th>Файлы</th>
-                        <th>Ошибки</th>
-                        <th>Текст ошибки</th>
                     </tr>
                     </thead>
                     <tbody>
-                    <tr th:each="run : ${runs.content}" th:classappend="${run.errorCount > 0 or run.status.name() == 'FAILED'} ? 'row-error' : ''">
-                        <td><a class="mono" th:href="@{/dashboard/sync-runs/{id}(id=${run.id})}" th:text="${run.id}">1</a></td>
-                        <td class="muted" th:text="${run.startedAt}">date</td>
-                        <td class="muted" th:text="${run.finishedAt ?: ''}">date</td>
-                        <td th:text="${run.durationMs != null ? run.durationMs + ' мс' : ''}">0</td>
+                    <tr th:each="run : ${runs.content}" th:classappend="${run.errorCount > 0 or run.status.name() == 'FAILED' or run.status.name() == 'SERVER_STOPPED'} ? 'row-error' : ''">
+                        <td class="muted">
+                            <a th:href="@{/dashboard/sync-runs/{id}(id=${run.id})}">
+                                <time th:if="${run.startedAt != null}"
+                                      th:attr="datetime=${run.startedAt},data-utc=${run.startedAt}"
+                                      th:text="${@uiTimeFormatters.formatUtcDateTime(run.startedAt)}">date</time>
+                            </a>
+                        </td>
+                        <td class="muted">
+                            <time th:if="${run.finishedAt != null}"
+                                  th:attr="datetime=${run.finishedAt},data-utc=${run.finishedAt}"
+                                  th:text="${@uiTimeFormatters.formatUtcDateTime(run.finishedAt)}">date</time>
+                        </td>
+                        <td>
+                            <span th:if="${run.durationMs != null}"
+                                  th:attr="data-duration-ms=${run.durationMs},data-duration-format='compact'"
+                                  th:text="${@uiTimeFormatters.formatDuration(run.durationMs)}">0 миллисекунд</span>
+                        </td>
                         <td th:text="${run.displayRunType}">Авто</td>
                         <td><span class="status" th:classappend="${run.statusCss}" th:text="${run.displayStatus}">Успешно</span></td>
                         <td class="mono" th:text="${run.dictionaryIdentifier ?: ''}">identifier</td>
@@ -192,19 +287,26 @@
                         <td th:text="${run.gitProjectsProcessed}">0</td>
                         <td th:text="${run.gitCommitsProcessed}">0</td>
                         <td th:text="${run.gitFilesProcessed}">0</td>
-                        <td th:text="${run.errorCount}">0</td>
-                        <td class="muted" th:text="${run.errorMessage ?: ''}">error</td>
                     </tr>
                     </tbody>
                 </table>
             </div>
             <div class="empty" th:if="${#lists.isEmpty(runs.content)}">История запусков пока пуста</div>
             <div class="pagination" th:if="${runs.totalPages > 1}">
-                <a class="button secondary" th:if="${runs.hasPrevious()}" th:href="@{/dashboard(page=${runs.page - 1},size=${runs.size},status=${filter.status},runType=${filter.runType},dictionaryIdentifier=${filter.dictionaryIdentifier},dictionaryVersion=${filter.dictionaryVersion},hasErrors=${filter.hasErrors},sort=${filter.sort},direction=${filter.direction})}">Назад</a>
-                <a class="button secondary" th:if="${runs.hasNext()}" th:href="@{/dashboard(page=${runs.page + 1},size=${runs.size},status=${filter.status},runType=${filter.runType},dictionaryIdentifier=${filter.dictionaryIdentifier},dictionaryVersion=${filter.dictionaryVersion},hasErrors=${filter.hasErrors},sort=${filter.sort},direction=${filter.direction})}">Вперед</a>
+                <a class="button secondary" th:if="${runs.hasPrevious()}" th:href="@{/dashboard(page=${runs.page - 1},size=${runs.size},status=${filter.status},runType=${filter.runType},dictionaryIdentifier=${filter.dictionaryIdentifier},dictionaryVersion=${filter.dictionaryVersion},dateFrom=${dateFromInput},dateTo=${dateToInput},hasErrors=${filter.hasErrors},sort=${filter.sort},direction=${filter.direction},tz=${clientTimeZone},clientTimeZone=${clientTimeZone})}">Назад</a>
+                <div class="page-links">
+                    <a class="page-link"
+                       th:each="pageNumber : ${pageNumbers}"
+                       th:classappend="${pageNumber == runs.page} ? 'active' : ''"
+                       th:attr="aria-current=${pageNumber == runs.page ? 'page' : null}"
+                       th:href="@{/dashboard(page=${pageNumber},size=${runs.size},status=${filter.status},runType=${filter.runType},dictionaryIdentifier=${filter.dictionaryIdentifier},dictionaryVersion=${filter.dictionaryVersion},dateFrom=${dateFromInput},dateTo=${dateToInput},hasErrors=${filter.hasErrors},sort=${filter.sort},direction=${filter.direction},tz=${clientTimeZone},clientTimeZone=${clientTimeZone})}"
+                       th:text="${pageNumber + 1}">1</a>
+                </div>
+                <a class="button secondary" th:if="${runs.hasNext()}" th:href="@{/dashboard(page=${runs.page + 1},size=${runs.size},status=${filter.status},runType=${filter.runType},dictionaryIdentifier=${filter.dictionaryIdentifier},dictionaryVersion=${filter.dictionaryVersion},dateFrom=${dateFromInput},dateTo=${dateToInput},hasErrors=${filter.hasErrors},sort=${filter.sort},direction=${filter.direction},tz=${clientTimeZone},clientTimeZone=${clientTimeZone})}">Вперед</a>
             </div>
         </section>
     </main>
 </div>
+<script th:src="@{/js/client-date-format.js}"></script>
 </body>
 </html>

@@ -4,9 +4,9 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.scheduling.annotation.EnableScheduling;
-import ru.spb.reshenie.chekerstatus.config.AppSecurityProperties;
-import ru.spb.reshenie.chekerstatus.config.GitLabProperties;
-import ru.spb.reshenie.chekerstatus.config.NsiProperties;
+import ru.spb.reshenie.chekerstatus.infrastructure.config.AppSecurityProperties;
+import ru.spb.reshenie.chekerstatus.infrastructure.config.GitLabProperties;
+import ru.spb.reshenie.chekerstatus.infrastructure.config.NsiProperties;
 
 @EnableScheduling
 @SpringBootApplication

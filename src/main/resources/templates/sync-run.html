@@ -27,7 +27,11 @@
             <div>
                 <h1 class="page-title" th:text="'Запуск синхронизации #' + ${details.run.id}">Запуск</h1>
                 <div class="technical" th:text="${details.run.dictionaryIdentifier ?: 'identifier не указан'}">identifier</div>
-                <div class="muted" th:text="${details.run.startedAt}">date</div>
+                <div class="muted">
+                    <time th:if="${details.run.startedAt != null}"
+                          th:attr="datetime=${details.run.startedAt},data-utc=${details.run.startedAt}"
+                          th:text="${@uiTimeFormatters.formatUtcDateTime(details.run.startedAt)}">date</time>
+                </div>
             </div>
             <span class="status" th:classappend="${details.run.statusCss}" th:text="${details.run.displayStatus}">Статус</span>
         </section>
@@ -40,9 +44,32 @@
                 <div class="meta-list two-columns">
                     <div><div class="meta-label">Тип</div><div class="meta-value" th:text="${details.run.displayRunType}">type</div></div>
                     <div><div class="meta-label">Статус</div><div class="meta-value" th:text="${details.run.displayStatus}">status</div></div>
-                    <div><div class="meta-label">Начало</div><div class="meta-value" th:text="${details.run.startedAt}">started</div></div>
-                    <div><div class="meta-label">Окончание</div><div class="meta-value" th:text="${details.run.finishedAt ?: 'еще выполняется'}">finished</div></div>
-                    <div><div class="meta-label">Длительность</div><div class="meta-value" th:text="${details.run.durationMs != null ? details.run.durationMs + ' мс' : 'еще выполняется'}">duration</div></div>
+                    <div>
+                        <div class="meta-label">Начало</div>
+                        <div class="meta-value">
+                            <time th:if="${details.run.startedAt != null}"
+                                  th:attr="datetime=${details.run.startedAt},data-utc=${details.run.startedAt}"
+                                  th:text="${@uiTimeFormatters.formatUtcDateTime(details.run.startedAt)}">started</time>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="meta-label">Окончание</div>
+                        <div class="meta-value">
+                            <time th:if="${details.run.finishedAt != null}"
+                                  th:attr="datetime=${details.run.finishedAt},data-utc=${details.run.finishedAt}"
+                                  th:text="${@uiTimeFormatters.formatUtcDateTime(details.run.finishedAt)}">finished</time>
+                            <span th:if="${details.run.finishedAt == null}">еще выполняется</span>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="meta-label">Длительность</div>
+                        <div class="meta-value">
+                            <span th:if="${details.run.durationMs != null}"
+                                  th:attr="data-duration-ms=${details.run.durationMs}"
+                                  th:text="${@uiTimeFormatters.formatDuration(details.run.durationMs)}">duration</span>
+                            <span th:if="${details.run.durationMs == null}">еще выполняется</span>
+                        </div>
+                    </div>
                     <div><div class="meta-label">Force reload</div><div class="meta-value" th:text="${details.run.forceReload ? 'да' : 'нет'}">false</div></div>
                     <div><div class="meta-label">Идентификатор НСИ</div><div class="meta-value mono" th:text="${details.run.dictionaryIdentifier ?: ''}">identifier</div></div>
                     <div><div class="meta-label">Версия НСИ</div><div class="meta-value" th:text="${details.run.dictionaryVersion ?: ''}">version</div></div>
@@ -82,12 +109,17 @@
                         <div class="technical" th:if="${error.projectPath != null}" th:text="'project: ' + ${error.projectPath}">project</div>
                         <div class="technical" th:if="${error.commitSha != null}" th:text="'commit: ' + ${error.commitSha}">commit</div>
                         <div class="technical" th:if="${error.filePath != null}" th:text="'file: ' + ${error.filePath}">file</div>
-                        <div class="muted" th:text="${error.createdAt}">date</div>
+                        <div class="muted">
+                            <time th:if="${error.createdAt != null}"
+                                  th:attr="datetime=${error.createdAt},data-utc=${error.createdAt}"
+                                  th:text="${@uiTimeFormatters.formatUtcDateTime(error.createdAt)}">date</time>
+                        </div>
                     </div>
                 </div>
             </aside>
         </section>
     </main>
 </div>
+<script th:src="@{/js/client-date-format.js}"></script>
 </body>
 </html>

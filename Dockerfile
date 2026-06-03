@@ -1,9 +1,24 @@
+# syntax=docker/dockerfile:1.7
 FROM maven:3.9.9-eclipse-temurin-21 AS build
 WORKDIR /workspace
 
 COPY pom.xml .
+RUN --mount=type=cache,target=/root/.m2 \
+    mvn -B -ntp \
+        -Dmaven.wagon.http.retryHandler.count=5 \
+        -Dmaven.wagon.rto=180000 \
+        -Daether.connector.connectTimeout=60000 \
+        -Daether.connector.requestTimeout=180000 \
+        dependency:go-offline
+
 COPY src ./src
-RUN mvn -B -DskipTests package
+RUN --mount=type=cache,target=/root/.m2 \
+    mvn -B -ntp -DskipTests \
+        -Dmaven.wagon.http.retryHandler.count=5 \
+        -Dmaven.wagon.rto=180000 \
+        -Daether.connector.connectTimeout=60000 \
+        -Daether.connector.requestTimeout=180000 \
+        package
 
 FROM eclipse-temurin:21-jre
 WORKDIR /app

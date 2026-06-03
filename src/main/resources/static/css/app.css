@@ -135,6 +135,9 @@ a {
 }
 
 .button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     height: 40px;
     border: 1px solid #1d4ed8;
     border-radius: 8px;
@@ -143,6 +146,8 @@ a {
     color: #ffffff;
     cursor: pointer;
     font-weight: 600;
+    line-height: 1;
+    text-align: center;
 }
 
 .button.secondary {
@@ -205,7 +210,111 @@ a {
 
 .filter-panel {
     margin-bottom: 18px;
-    padding: 14px 16px;
+    padding: 0;
+}
+
+.secondary-metrics {
+    margin-bottom: 18px;
+}
+
+.metrics-summary,
+.filter-summary {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 56px;
+    padding: 10px 16px;
+    cursor: pointer;
+    list-style: none;
+    background: #fbfcfe;
+}
+
+.metrics-summary::-webkit-details-marker,
+.filter-summary::-webkit-details-marker {
+    display: none;
+}
+
+.metrics-summary {
+    justify-content: space-between;
+}
+
+.metrics-summary::after,
+.filter-summary::after {
+    content: "Показать";
+    margin-left: auto;
+    color: var(--blue);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.secondary-metrics[open] .metrics-summary::after,
+.filter-panel[open] .filter-summary::after {
+    content: "Скрыть";
+}
+
+.metrics-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px 16px 14px;
+    border-top: 1px solid var(--line);
+}
+
+.metric-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 32px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 5px 10px;
+    background: var(--surface);
+}
+
+.metric-chip span,
+.filter-chip span {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.metric-chip strong,
+.filter-chip strong {
+    font-size: 13px;
+}
+
+.filter-summary {
+    flex-wrap: wrap;
+}
+
+.filter-toggle {
+    height: 34px;
+}
+
+.active-filters {
+    display: flex;
+    flex: 1 1 360px;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-width: 0;
+}
+
+.filter-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 100%;
+    min-height: 30px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 4px 9px;
+    background: var(--surface);
+}
+
+.filter-chip strong {
+    overflow: hidden;
+    max-width: 280px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .filters {
@@ -213,6 +322,8 @@ a {
     grid-template-columns: repeat(5, minmax(150px, 1fr));
     gap: 12px;
     align-items: end;
+    padding: 14px 16px;
+    border-top: 1px solid var(--line);
 }
 
 .filters label {
@@ -440,9 +551,42 @@ a {
 
 .pagination {
     display: flex;
+    align-items: center;
+    flex-wrap: wrap;
     gap: 8px;
     justify-content: flex-end;
     padding: 14px 16px;
+}
+
+.page-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.page-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 34px;
+    height: 34px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 0 10px;
+    background: var(--surface);
+    color: var(--text);
+    font-weight: 700;
+}
+
+.page-link:hover {
+    border-color: #b9c8dc;
+    background: #f8fbff;
+}
+
+.page-link.active {
+    border-color: #1d4ed8;
+    background: var(--blue);
+    color: #ffffff;
 }
 
 .error-list {
@@ -490,5 +634,25 @@ a {
     .topbar {
         align-items: stretch;
         flex-direction: column;
+    }
+
+    .metrics-summary,
+    .filter-summary {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .metrics-summary::after,
+    .filter-summary::after {
+        margin-left: 0;
+    }
+
+    .active-filters {
+        flex-basis: auto;
+        width: 100%;
+    }
+
+    .filter-chip strong {
+        max-width: 72vw;
     }
 }
