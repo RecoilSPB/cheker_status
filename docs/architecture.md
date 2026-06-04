@@ -1,50 +1,77 @@
 # Architecture
 
-Project code is grouped by Clean Architecture layers under
+Project code is grouped by feature packages under
 `ru.spb.reshenie.chekerstatus`.
 
-## Layers
+The current structure favors navigation by business area instead of generic
+Clean Architecture layers. Spring components are injected directly when they
+have a single production implementation; small interfaces remain only where
+they describe a real event or integration contract.
 
-- `domain` contains business data structures, value objects, enums, and small
-  pure helpers. It must not depend on Spring, JDBC, HTTP clients, or Thymeleaf.
-- `application` contains use cases and orchestration services. It coordinates
-  domain objects through application ports, but keeps infrastructure and
-  web/controller concerns out.
-- `infrastructure` contains adapters for external systems and technical details:
-  Spring configuration, JDBC repositories, GitLab/NSI clients, persistence code.
-- `presentation` contains HTTP/UI code: MVC controllers, API controllers,
-  Thymeleaf read models, and UI formatting helpers.
+## Package Map
 
-## Current Package Map
-
-- `domain.common` - shared pure helpers.
-- `domain.gitlab` - GitLab synchronization model and results.
-- `domain.nsi` - NSI dictionary/passport/record model.
-- `domain.sync` - synchronization run history model.
-- `application.gitlab` - Git synchronization use cases.
-- `application.gitlab.port` - GitLab ports required by use cases.
-- `application.nsi` - NSI synchronization use cases and scheduler.
-- `application.nsi.port` - NSI ports and sync settings required by use cases.
-- `application.sync` - synchronization run lifecycle service.
-- `application.sync.port` - synchronization run history port.
-- `infrastructure.config` - Spring Boot configuration and properties.
-- `infrastructure.gitlab` - GitLab HTTP/persistence adapters.
-- `infrastructure.nsi` - NSI HTTP/persistence adapters.
-- `infrastructure.persistence` - synchronization history persistence.
-- `presentation.web` - dashboard API, Thymeleaf controllers, UI read models.
-
-## Dependency Rule
-
-Inner layers should not know about outer layers:
-
-```mermaid
-flowchart LR
-    P["presentation"] --> A["application"]
-    A --> D["domain"]
-    A --> AP["application ports"]
-    I["infrastructure"] --> AP
-    I --> D
+```text
+ru.spb.reshenie.chekerstatus
+├── ChekerStatusApplication.java
+├── common
+│   └── json
+├── config
+│   ├── gitlab
+│   ├── http
+│   ├── nsi
+│   └── security
+├── gitlab
+│   ├── client
+│   ├── model
+│   ├── parser
+│   ├── repository
+│   ├── service
+│   └── sync
+├── nsi
+│   ├── client
+│   ├── model
+│   ├── repository
+│   ├── service
+│   └── scheduler
+├── sync
+│   ├── model
+│   ├── query
+│   ├── repository
+│   └── service
+└── web
+    ├── controller
+    ├── dto
+    ├── model
+    ├── repository
+    └── service
 ```
 
-Application services depend on ports and domain models. Infrastructure adapters
-implement those ports and keep Spring/JDBC/HTTP details outside the use cases.
+## Responsibilities
+
+- `config` contains Spring Boot configuration and property classes grouped by
+  technical area: security, HTTP/WebSocket, NSI, and GitLab.
+- `nsi` contains the NSI client, dictionary/passport/record models,
+  persistence code, synchronization service, progress tracking, and scheduler.
+- `gitlab` contains the GitLab API client, commit/file models, link parsing,
+  JDBC repositories, synchronization services, executor, and concurrency
+  limiter.
+- `sync` contains synchronization run models, query/filter objects, the
+  repository for run history, and lifecycle services. `LiveUpdatePublisher`
+  lives here as a small event contract used by sync and NSI services.
+- `web` contains MVC/API controllers, request/response DTOs, UI read models,
+  UI query repository, time formatting helpers, and the WebSocket publisher
+  implementation.
+- `common.json` contains the shared JSON helper used by both NSI and GitLab
+  models.
+
+## Dependency Guidance
+
+Feature packages may use shared `sync` services and models where they represent
+cross-feature synchronization state. The `web` package should adapt that state
+for HTTP, Thymeleaf, and WebSocket clients. Core synchronization code should
+publish live-update events through `sync.service.LiveUpdatePublisher` rather
+than depending on WebSocket implementation classes directly.
+
+Configuration keys, HTTP endpoints, Flyway migrations, database tables, and
+templates are part of the external contract and should not change during package
+refactoring.
