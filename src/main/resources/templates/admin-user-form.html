@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${pageTitle} + ' - NSI Git Monitor'">Пользователь - NSI Git Monitor</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<div class="app">
+    <aside th:replace="~{fragments/sidebar :: sidebar(${active})}"></aside>
+    <main class="main">
+        <div class="topbar">
+            <div>
+                <h1 class="page-title" th:text="${pageTitle}">Пользователь</h1>
+                <div class="page-subtitle">
+                    <span th:text="${pageSubtitle}">Настройка ролей и прав</span>
+                    <span th:if="${editing}"> · </span>
+                    <span th:if="${editing}" th:text="${managedUser.displayLabel} + ' (' + managedUser.username + ')'">User</span>
+                </div>
+            </div>
+            <div class="actions">
+                <a class="button secondary" th:href="@{/admin/users}">К списку пользователей</a>
+            </div>
+        </div>
+
+        <div class="notice notice-error" th:if="${error}" th:text="${error}">Ошибка</div>
+        <div class="notice" th:if="${message}" th:text="${message}">Сохранено</div>
+
+        <section class="panel access-panel">
+            <div class="panel-header">
+                <div class="panel-title" th:text="${editing} ? 'Карточка пользователя' : 'Новый пользователь'">Пользователь</div>
+                <div class="summary-badges" th:if="${editing}">
+                    <span class="status" th:classappend="${managedUser.enabled ? 'status-ok' : 'status-error'}"
+                          th:text="${managedUser.enabled ? 'Активен' : 'Отключен'}">Активен</span>
+                    <span class="status status-muted"
+                          th:text="${'Ролей: ' + managedUser.roleCodes.size()}">Ролей: 0</span>
+                    <span class="status status-muted"
+                          th:text="${'Прав: ' + managedUser.effectivePermissionCodes.size()}">Прав: 0</span>
+                    <span class="status status-pending" th:if="${currentUsername == managedUser.username}">Это вы</span>
+                </div>
+            </div>
+
+            <form class="access-form" th:action="${formAction}" method="post">
+                <div class="form-grid">
+                    <label>
+                        <span>Логин</span>
+                        <input type="text" name="username" th:value="${managedUser.username}" autocomplete="username" required>
+                    </label>
+                    <label>
+                        <span>Имя</span>
+                        <input type="text" name="displayName" th:value="${managedUser.displayName}" autocomplete="name">
+                    </label>
+                    <label>
+                        <span th:text="${editing ? 'Новый пароль' : 'Пароль'}">Пароль</span>
+                        <input type="password"
+                               name="password"
+                               autocomplete="new-password"
+                               th:required="${!editing}"
+                               th:placeholder="${editing ? 'Оставьте пустым, чтобы не менять' : ''}">
+                    </label>
+                    <label class="checkbox-row checkbox-row-inline">
+                        <input type="checkbox" name="enabled" th:checked="${managedUser.enabled}">
+                        <span>Пользователь активен</span>
+                    </label>
+                </div>
+
+                <div class="access-columns">
+                    <section class="access-section">
+                        <div class="section-title">Роли</div>
+                        <div class="checkbox-grid">
+                            <label class="checkbox-row"
+                                   th:each="role : ${roles}"
+                                   th:attr="for=${'user-role-' + role.code}">
+                                <input type="checkbox"
+                                       name="roleCodes"
+                                       th:id="${'user-role-' + role.code}"
+                                       th:value="${role.code}"
+                                       th:checked="${managedUser.hasRole(role.code)}">
+                                <span>
+                                    <strong th:text="${role.name}">Role</strong>
+                                    <small th:text="${role.description}">Description</small>
+                                </span>
+                            </label>
+                        </div>
+                    </section>
+
+                    <section class="access-section">
+                        <div class="section-title">Прямые права</div>
+                        <div class="checkbox-grid">
+                            <label class="checkbox-row"
+                                   th:each="permission : ${permissions}"
+                                   th:attr="for=${'user-permission-' + permission.code}">
+                                <input type="checkbox"
+                                       name="permissionCodes"
+                                       th:id="${'user-permission-' + permission.code}"
+                                       th:value="${permission.code}"
+                                       th:checked="${managedUser.hasDirectPermission(permission.code)}">
+                                <span>
+                                    <strong th:text="${permission.name}">Permission</strong>
+                                    <small th:text="${permission.description}">Description</small>
+                                </span>
+                            </label>
+                        </div>
+                    </section>
+                </div>
+
+                <section class="access-section access-section-readonly" th:if="${editing}">
+                    <div class="section-title">Итоговые права</div>
+                    <div class="badge-list" th:if="${!managedUser.effectivePermissionCodes.isEmpty()}">
+                        <span class="status status-muted"
+                              th:each="permission : ${permissions}"
+                              th:if="${managedUser.hasEffectivePermission(permission.code)}"
+                              th:text="${permission.name}">Right</span>
+                    </div>
+                    <div class="muted" th:if="${managedUser.effectivePermissionCodes.isEmpty()}">Нет назначенных прав</div>
+                </section>
+
+                <div class="form-actions">
+                    <button class="button" type="submit" th:text="${submitLabel}">Сохранить изменения</button>
+                </div>
+            </form>
+        </section>
+    </main>
+</div>
+</body>
+</html>

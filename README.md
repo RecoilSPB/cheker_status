@@ -69,6 +69,30 @@ GITLAB_RETRY_COUNT=3
 GITLAB_RETRY_DELAY_MS=1000
 ```
 
+## Access Control
+
+Application security now uses database-backed users, roles, and permissions.
+
+- `APP_USERNAME` and `APP_PASSWORD` bootstrap or update the startup administrator on every launch.
+- The administrator can manage access in the UI at `/admin/users`.
+- Navigation and page access are limited by permissions, not only by authentication.
+
+Built-in roles:
+
+- `ADMIN` - full access, including user management
+- `OPERATOR` - dashboard, documents, commits, file changes, and manual sync
+- `VIEWER` - read-only access to dashboard and data sections
+
+Built-in permissions:
+
+- `dashboard.view`
+- `dashboard.metrics.view`
+- `dashboard.sync.manage`
+- `documents.view`
+- `commits.view`
+- `fileChanges.view`
+- `users.manage`
+
 Additional dictionaries can be added in `src/main/resources/application.yml` under `nsi.dictionaries`.
 
 `NSI_TRUST_ALL_SSL=true` is enabled by default because the current NSI HTTPS endpoint may fail Java certificate validation. Set it to `false` when the NSI certificate chain is available in the JVM trust store.

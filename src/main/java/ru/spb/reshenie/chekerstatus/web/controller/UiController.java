@@ -3,6 +3,7 @@ package ru.spb.reshenie.chekerstatus.web.controller;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,6 +21,7 @@ import ru.spb.reshenie.chekerstatus.sync.model.SyncRunStatus;
 import ru.spb.reshenie.chekerstatus.sync.model.SyncRunType;
 import ru.spb.reshenie.chekerstatus.sync.model.SyncErrorStage;
 import ru.spb.reshenie.chekerstatus.sync.model.SyncRunLogLevel;
+import ru.spb.reshenie.chekerstatus.security.service.SecurityAccessService;
 import ru.spb.reshenie.chekerstatus.web.repository.UiRepository;
 
 import java.time.DateTimeException;
@@ -39,18 +41,25 @@ public class UiController {
     private final UiRepository repository;
     private final SyncRunRepository syncRunRepository;
     private final NsiSyncScheduler syncScheduler;
+    private final SecurityAccessService securityAccessService;
 
     public UiController(UiRepository repository,
                         SyncRunRepository syncRunRepository,
-                        NsiSyncScheduler syncScheduler) {
+                        NsiSyncScheduler syncScheduler,
+                        SecurityAccessService securityAccessService) {
         this.repository = repository;
         this.syncRunRepository = syncRunRepository;
         this.syncScheduler = syncScheduler;
+        this.securityAccessService = securityAccessService;
     }
 
     @GetMapping("/")
     public String root() {
-        return "redirect:/documents";
+        try {
+            return "redirect:" + securityAccessService.firstAccessiblePath();
+        } catch (AccessDeniedException e) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "No accessible sections for current user", e);
+        }
     }
 
     @GetMapping("/dashboard")

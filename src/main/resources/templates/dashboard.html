@@ -8,7 +8,7 @@
 </head>
 <body>
 <div class="app">
-    <aside class="sidebar">
+    <aside class="sidebar" th:replace="~{fragments/sidebar :: sidebar(${active})}">
         <div class="brand"><span class="brand-mark">N</span><span>NSI Git Monitor</span></div>
         <nav class="nav">
             <a th:classappend="${active == 'dashboard'} ? 'active' : ''" th:href="@{/dashboard}">Дашборд</a>
@@ -26,7 +26,7 @@
             </div>
             <div class="actions">
                 <a class="button secondary" th:href="@{/dashboard}">Обновить</a>
-                <form th:action="@{/dashboard/sync-runs}" method="post">
+                <form th:if="${@securityAccessService.canManageSync()}" th:action="@{/dashboard/sync-runs}" method="post">
                     <input type="hidden" name="dictionaryIdentifier" th:value="${summary.dictionaryIdentifier}">
                     <button id="sync-start-button"
                             class="button"
@@ -80,7 +80,8 @@
             </div>
         </section>
 
-        <details class="panel secondary-metrics">
+        <details class="panel secondary-metrics"
+                 th:if="${@securityAccessService.canViewDashboardMetrics()}">
             <summary class="metrics-summary">
                 <span class="panel-title">Доп. метрики</span>
                 <span class="muted">GitLab-ссылки, ошибки, коммиты и файлы истории</span>

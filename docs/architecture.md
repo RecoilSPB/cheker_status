@@ -55,6 +55,9 @@ ru.spb.reshenie.chekerstatus
 - `gitlab` contains the GitLab API client, commit/file models, link parsing,
   JDBC repositories, synchronization services, executor, and concurrency
   limiter.
+- `security` contains database-backed user, role, and permission models,
+  JDBC access-control repositories, the Spring Security user-details service,
+  administrator bootstrap, and access-check helpers for the UI layer.
 - `sync` contains synchronization run models, query/filter objects, the
   repository for run history, and lifecycle services. `LiveUpdatePublisher`
   lives here as a small event contract used by sync and NSI services.

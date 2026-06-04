@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Пользователи - NSI Git Monitor</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<div class="app">
+    <aside th:replace="~{fragments/sidebar :: sidebar(${active})}"></aside>
+    <main class="main">
+        <div class="topbar">
+            <div>
+                <h1 class="page-title">Пользователи и права</h1>
+                <div class="page-subtitle">Выберите пользователя для просмотра карточки и настройки доступа</div>
+            </div>
+            <div class="actions">
+                <a class="button" th:href="@{/admin/users/new}">Добавить пользователя</a>
+            </div>
+        </div>
+
+        <div class="notice notice-error" th:if="${error}" th:text="${error}">Ошибка</div>
+        <div class="notice" th:if="${message}" th:text="${message}">Сохранено</div>
+
+        <section class="panel access-panel">
+            <div class="panel-header">
+                <div class="panel-title">Текущие пользователи</div>
+                <div class="muted" th:text="${#lists.size(users)} + ' записей'">0 записей</div>
+            </div>
+
+            <div class="empty" th:if="${#lists.isEmpty(users)}">Пользователи пока не созданы</div>
+
+            <div class="access-user-list" th:if="${!#lists.isEmpty(users)}">
+                <a class="access-user-link"
+                   th:each="user : ${users}"
+                   th:classappend="${currentUsername == user.username} ? ' access-user-link-current' : ''"
+                   th:href="@{/admin/users/{id}(id=${user.id})}">
+                    <div>
+                        <div class="document-name" th:text="${user.displayLabel}">User</div>
+                        <div class="technical" th:text="${user.username}">login</div>
+                    </div>
+                    <div class="summary-badges">
+                        <span class="status" th:classappend="${user.enabled ? 'status-ok' : 'status-error'}"
+                              th:text="${user.enabled ? 'Активен' : 'Отключен'}">Активен</span>
+                        <span class="status status-muted"
+                              th:text="${'Ролей: ' + user.roleCodes.size()}">Ролей: 0</span>
+                        <span class="status status-muted"
+                              th:text="${'Прав: ' + user.effectivePermissionCodes.size()}">Прав: 0</span>
+                        <span class="status status-pending" th:if="${currentUsername == user.username}">Это вы</span>
+                    </div>
+                </a>
+            </div>
+        </section>
+    </main>
+</div>
+</body>
+</html>

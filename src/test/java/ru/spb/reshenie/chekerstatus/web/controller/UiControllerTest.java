@@ -19,6 +19,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import ru.spb.reshenie.chekerstatus.config.security.AppSecurityProperties;
 import ru.spb.reshenie.chekerstatus.config.security.SecurityConfiguration;
 import ru.spb.reshenie.chekerstatus.nsi.scheduler.NsiSyncScheduler;
+import ru.spb.reshenie.chekerstatus.security.service.SecurityAccessService;
+import ru.spb.reshenie.chekerstatus.security.service.SecurityPermissions;
 import ru.spb.reshenie.chekerstatus.sync.model.DashboardSummary;
 import ru.spb.reshenie.chekerstatus.sync.model.NsiSyncRun;
 import ru.spb.reshenie.chekerstatus.sync.model.NsiSyncRunDetails;
@@ -62,6 +64,9 @@ class UiControllerTest {
     @MockBean
     private NsiSyncScheduler scheduler;
 
+    @MockBean(name = "securityAccessService")
+    private SecurityAccessService securityAccessService;
+
     @BeforeEach
     void setUp() {
         when(syncRunRepository.dashboardSummary()).thenReturn(new DashboardSummary(
@@ -78,6 +83,16 @@ class UiControllerTest {
         ));
         when(syncRunRepository.findRuns(any(NsiSyncRunFilter.class)))
                 .thenReturn(new PagedResult<NsiSyncRun>(Collections.emptyList(), 0, 5, 12));
+        when(securityAccessService.canManageSync()).thenReturn(true);
+        when(securityAccessService.canViewDashboard()).thenReturn(true);
+        when(securityAccessService.canViewDashboardMetrics()).thenReturn(true);
+        when(securityAccessService.canViewDocuments()).thenReturn(true);
+        when(securityAccessService.canViewCommits()).thenReturn(true);
+        when(securityAccessService.canViewFileChanges()).thenReturn(true);
+        when(securityAccessService.canManageUsers()).thenReturn(true);
+        when(securityAccessService.isSecurityEnabled()).thenReturn(true);
+        when(securityAccessService.isAuthenticated()).thenReturn(true);
+        when(securityAccessService.currentUsername()).thenReturn("tester");
     }
 
     @ParameterizedTest
@@ -85,7 +100,7 @@ class UiControllerTest {
             "Europe/Moscow,3",
             "Europe/Amsterdam,2"
     })
-    @WithMockUser
+    @WithMockUser(authorities = SecurityPermissions.DASHBOARD_VIEW)
     void dashboardFilterUsesClientTimeZone(String timeZone, int expectedOffsetHours) throws Exception {
         mockMvc.perform(get("/dashboard")
                         .param("dateFrom", "2026-06-03T14:25")
@@ -104,7 +119,7 @@ class UiControllerTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(authorities = SecurityPermissions.DASHBOARD_VIEW)
     void dashboardRunningRunRowLinksToDetailsAndShowsProgressInsteadOfFinishFields() throws Exception {
         NsiSyncRun run = syncRun(77L, SyncRunStatus.RUNNING, null, null, 42);
         when(syncRunRepository.findRuns(any(NsiSyncRunFilter.class)))
@@ -124,7 +139,7 @@ class UiControllerTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(authorities = {SecurityPermissions.DASHBOARD_VIEW, SecurityPermissions.DASHBOARD_SYNC_MANAGE})
     void dashboardDisablesManualSyncButtonWhenSyncIsRunning() throws Exception {
         when(syncRunRepository.dashboardSummary()).thenReturn(summary("RUNNING"));
 
@@ -139,6 +154,39 @@ class UiControllerTest {
         assertThat(html).contains("Синхронизация уже выполняется");
     }
 
+    @Test
+    @WithMockUser(authorities = SecurityPermissions.DASHBOARD_VIEW)
+    void dashboardHidesSecondaryMetricsWhenDedicatedPermissionIsMissing() throws Exception {
+        when(securityAccessService.canViewDashboardMetrics()).thenReturn(false);
+
+        String html = mockMvc.perform(get("/dashboard"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString(StandardCharsets.UTF_8);
+
+        assertThat(html).doesNotContain("Доп. метрики");
+        assertThat(html).doesNotContain("Всего найденных GitLab-ссылок");
+        assertThat(html).doesNotContain("Новые обработанные коммиты");
+        assertThat(html).doesNotContain("Файлы истории GitLab");
+    }
+
+    @Test
+    @WithMockUser(authorities = SecurityPermissions.DASHBOARD_VIEW)
+    void dashboardShowsSecondaryMetricsWhenDedicatedPermissionIsGranted() throws Exception {
+        String html = mockMvc.perform(get("/dashboard"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString(StandardCharsets.UTF_8);
+
+        assertThat(html).contains("Доп. метрики");
+        assertThat(html).contains("Всего найденных GitLab-ссылок");
+        assertThat(html).contains("GitLab-ссылки с ошибками синхронизации");
+        assertThat(html).contains("Новые обработанные коммиты");
+        assertThat(html).contains("Файлы истории GitLab");
+    }
+
     @ParameterizedTest
     @CsvSource({
             "IDLE,Ожидание",
@@ -146,7 +194,7 @@ class UiControllerTest {
             "PARTIAL,Частично выполнено",
             "SERVER_STOPPED,Остановка сервера"
     })
-    @WithMockUser
+    @WithMockUser(authorities = {SecurityPermissions.DASHBOARD_VIEW, SecurityPermissions.DASHBOARD_SYNC_MANAGE})
     void dashboardShowsTimerAndEnabledManualSyncButtonForNonRunningStatuses(String status, String displayStatus)
             throws Exception {
         when(syncRunRepository.dashboardSummary()).thenReturn(summary(status));
@@ -167,7 +215,7 @@ class UiControllerTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(authorities = SecurityPermissions.DASHBOARD_SYNC_MANAGE)
     void startDashboardSyncRedirectsWithoutStartedFlashMessage() throws Exception {
         when(scheduler.startManualSynchronization("1.2.643", false)).thenReturn(42L);
 
@@ -179,7 +227,7 @@ class UiControllerTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(authorities = SecurityPermissions.DASHBOARD_SYNC_MANAGE)
     void startDashboardSyncRedirectsWithoutAlreadyRunningFlashMessage() throws Exception {
         doThrow(new IllegalStateException("Синхронизация уже выполняется"))
                 .when(scheduler).startManualSynchronization("1.2.643", false);
@@ -192,7 +240,7 @@ class UiControllerTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(authorities = SecurityPermissions.DASHBOARD_VIEW)
     void completedRunShowsFinishFieldsAndDetailsPageHasLogButtonAndProgress() throws Exception {
         OffsetDateTime finishedAt = OffsetDateTime.of(2026, 6, 3, 10, 1, 5, 0, ZoneOffset.UTC);
         NsiSyncRun run = syncRun(78L, SyncRunStatus.SUCCESS, finishedAt, 65000L, 100);

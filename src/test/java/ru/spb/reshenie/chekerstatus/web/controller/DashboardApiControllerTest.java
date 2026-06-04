@@ -16,6 +16,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import ru.spb.reshenie.chekerstatus.config.security.AppSecurityProperties;
 import ru.spb.reshenie.chekerstatus.config.security.SecurityConfiguration;
 import ru.spb.reshenie.chekerstatus.nsi.scheduler.NsiSyncScheduler;
+import ru.spb.reshenie.chekerstatus.security.service.SecurityPermissions;
 import ru.spb.reshenie.chekerstatus.sync.model.DashboardSummary;
 import ru.spb.reshenie.chekerstatus.sync.model.NsiSyncRun;
 import ru.spb.reshenie.chekerstatus.sync.query.NsiSyncRunFilter;
@@ -51,7 +52,7 @@ class DashboardApiControllerTest {
     private NsiSyncScheduler scheduler;
 
     @Test
-    @WithMockUser
+    @WithMockUser(authorities = SecurityPermissions.DASHBOARD_VIEW)
     void returnsDashboardSummary() throws Exception {
         when(repository.dashboardSummary()).thenReturn(new DashboardSummary(
                 "IDLE",
@@ -79,7 +80,7 @@ class DashboardApiControllerTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(authorities = SecurityPermissions.DASHBOARD_VIEW)
     void returnsFilteredSyncRunsPage() throws Exception {
         NsiSyncRun run = new NsiSyncRun(
                 1L,
@@ -131,7 +132,7 @@ class DashboardApiControllerTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(authorities = SecurityPermissions.DASHBOARD_VIEW)
     void returnsNotFoundForMissingSyncRunDetails() throws Exception {
         when(repository.findDetails(404L)).thenThrow(new EmptyResultDataAccessException(1));
 

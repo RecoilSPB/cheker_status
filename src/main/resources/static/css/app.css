@@ -83,6 +83,41 @@ a {
     color: #ffffff;
 }
 
+.sidebar-footer {
+    display: grid;
+    gap: 12px;
+    margin-top: 24px;
+    padding-top: 18px;
+    border-top: 1px solid rgba(219, 229, 242, .16);
+}
+
+.sidebar-session {
+    display: grid;
+    gap: 4px;
+}
+
+.sidebar-user-label {
+    color: #7e90aa;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.sidebar-user-name {
+    color: #ffffff;
+    font-weight: 700;
+    word-break: break-word;
+}
+
+.sidebar-logout {
+    margin: 0;
+}
+
+.button-full {
+    width: 100%;
+}
+
 .main {
     min-width: 0;
     padding: 24px 28px 36px;
@@ -225,6 +260,12 @@ button.button:disabled {
     background: var(--blue-soft);
     color: #174ea6;
     font-weight: 700;
+}
+
+.notice-error {
+    border-color: #f2b8b5;
+    background: #fde8e7;
+    color: var(--red);
 }
 
 .filter-panel {
@@ -686,6 +727,158 @@ button.button:disabled {
     border-bottom: 1px solid var(--line);
 }
 
+.access-panel {
+    margin-bottom: 18px;
+}
+
+.access-user-list {
+    display: grid;
+}
+
+.access-form {
+    display: grid;
+    gap: 18px;
+    padding: 18px 16px;
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    align-items: end;
+}
+
+.form-grid label,
+.access-section {
+    display: grid;
+    gap: 6px;
+}
+
+.form-grid label > span,
+.section-title {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+
+.form-grid input {
+    height: 40px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 0 10px;
+    background: var(--surface);
+    color: var(--text);
+    font: 14px/1.4 "Inter", "Segoe UI", Arial, sans-serif;
+}
+
+.checkbox-row {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #fbfcfe;
+    cursor: pointer;
+}
+
+.checkbox-row input {
+    margin-top: 2px;
+}
+
+.checkbox-row span {
+    display: grid;
+    gap: 2px;
+}
+
+.checkbox-row strong {
+    font-size: 14px;
+}
+
+.checkbox-row small {
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.35;
+}
+
+.checkbox-row-inline {
+    justify-content: center;
+    min-height: 40px;
+}
+
+.access-columns {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.checkbox-grid {
+    display: grid;
+    gap: 10px;
+}
+
+.access-section-readonly {
+    gap: 10px;
+}
+
+.badge-list,
+.summary-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.access-user-card {
+    border-top: 1px solid var(--line);
+}
+
+.access-user-link,
+.access-user-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px;
+}
+
+.access-user-link {
+    border-top: 1px solid var(--line);
+}
+
+.access-user-link:hover {
+    background: #fbfcfe;
+}
+
+.access-user-link:focus-visible {
+    outline: 2px solid #93b4ff;
+    outline-offset: -2px;
+}
+
+.access-user-link-current {
+    background: #f8fbff;
+}
+
+.access-user-summary {
+    cursor: pointer;
+    list-style: none;
+}
+
+.access-user-summary::-webkit-details-marker {
+    display: none;
+}
+
+.access-user-card[open] .access-user-summary {
+    background: #fbfcfe;
+    border-bottom: 1px solid var(--line);
+}
+
 @media (max-width: 1100px) {
     .app {
         grid-template-columns: 1fr;
@@ -702,7 +895,9 @@ button.button:disabled {
     .dashboard-stats,
     .compact-stats,
     .filters,
-    .two-columns {
+    .two-columns,
+    .form-grid,
+    .access-columns {
         grid-template-columns: 1fr;
     }
 
@@ -738,6 +933,11 @@ button.button:disabled {
     .metrics-summary::after,
     .filter-summary::after {
         margin-left: 0;
+    }
+
+    .access-user-link {
+        align-items: flex-start;
+        flex-direction: column;
     }
 
     .active-filters {
