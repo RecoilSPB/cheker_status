@@ -58,7 +58,7 @@ public class SyncRunService {
         activeRuns.remove(Long.valueOf(runId));
         safeAddLog(runId, SyncRunLogLevel.INFO, SyncErrorStage.UNKNOWN, null,
                 null, null, null, null, "Синхронизация завершена успешно", null, summaryDetails(update));
-        publishRunChanged(runId);
+        publishRunChanged(runId, update);
     }
 
     public void finishPartial(long runId, NsiSyncRunUpdate update) {
@@ -67,7 +67,7 @@ public class SyncRunService {
         activeRuns.remove(Long.valueOf(runId));
         safeAddLog(runId, SyncRunLogLevel.WARN, SyncErrorStage.UNKNOWN, null,
                 null, null, null, null, "Синхронизация завершена частично", null, summaryDetails(update));
-        publishRunChanged(runId);
+        publishRunChanged(runId, update);
     }
 
     public void finishFailed(long runId, NsiSyncRunUpdate update) {
@@ -75,7 +75,7 @@ public class SyncRunService {
         activeRuns.remove(Long.valueOf(runId));
         safeAddLog(runId, SyncRunLogLevel.ERROR, SyncErrorStage.UNKNOWN, null,
                 null, null, null, null, "Синхронизация завершена с ошибкой", null, summaryDetails(update));
-        publishRunChanged(runId);
+        publishRunChanged(runId, update);
     }
 
     public void finishCompleted(long runId, NsiSyncRunUpdate update) {
@@ -89,16 +89,34 @@ public class SyncRunService {
                 : "Синхронизация завершена успешно";
         safeAddLog(runId, level, SyncErrorStage.UNKNOWN, null,
                 null, null, null, null, message, null, summaryDetails(update));
-        publishRunChanged(runId);
+        publishRunChanged(runId, update);
     }
 
     public void updateProgress(long runId, SyncErrorStage stage, NsiSyncRunUpdate update) {
         ActiveSyncRun activeRun = activeRuns.get(Long.valueOf(runId));
+        Integer previousProgressPercent = null;
         if (activeRun != null) {
-            activeRun.update(stage, update);
+            NsiSyncRunUpdate previousUpdate = activeRun.update(stage, update);
+            previousProgressPercent = Integer.valueOf(previousUpdate.getProgressPercent());
         }
         repository.updateRunProgress(runId, update);
-        publishRunChanged(runId);
+        log.info("Progress bar state: runId={}, stage={}, progress={}%, previousProgress={}%, nsiRowsTotal={}, "
+                        + "nsiInserted={}, nsiUpdated={}, nsiDeactivated={}, gitLinksFound={}, "
+                        + "gitProjectsProcessed={}, gitCommitsProcessed={}, gitFilesProcessed={}, errors={}",
+                Long.valueOf(runId),
+                stage,
+                Integer.valueOf(update.getProgressPercent()),
+                previousProgressPercent,
+                Integer.valueOf(update.getNsiRowsTotal()),
+                Integer.valueOf(update.getNsiRowsInserted()),
+                Integer.valueOf(update.getNsiRowsUpdated()),
+                Integer.valueOf(update.getNsiRowsDeactivated()),
+                Integer.valueOf(update.getGitLinksFound()),
+                Integer.valueOf(update.getGitProjectsProcessed()),
+                Integer.valueOf(update.getGitCommitsProcessed()),
+                Integer.valueOf(update.getGitFilesProcessed()),
+                Integer.valueOf(update.getErrorCount()));
+        publishRunChanged(runId, update);
     }
 
     public void addError(long runId,
@@ -174,8 +192,11 @@ public class SyncRunService {
         try {
             updateProgress(runId, stage, update);
         } catch (RuntimeException e) {
-            log.warn("Cannot update sync run progress: runId={}, stage={}, error={}",
-                    runId, stage, e.getMessage());
+            log.warn("Cannot update sync run progress: runId={}, stage={}, progress={}%, error={}",
+                    Long.valueOf(runId),
+                    stage,
+                    Integer.valueOf(update == null ? 0 : update.getProgressPercent()),
+                    e.getMessage());
         }
     }
 
@@ -218,7 +239,7 @@ public class SyncRunService {
                 activeRuns.remove(entry.getKey());
                 log.warn("Marked active sync run as server-stopped: runId={}, stage={}",
                         runId, activeRun.stage);
-                publishRunChanged(runId);
+                publishRunChanged(runId, update);
             } catch (RuntimeException e) {
                 log.warn("Cannot mark active sync run as server-stopped: runId={}, error={}",
                         runId, e.getMessage());
@@ -227,17 +248,33 @@ public class SyncRunService {
     }
 
     private void publishRunChanged(long runId) {
+        publishRunChanged(runId, null);
+    }
+
+    private void publishRunChanged(long runId, NsiSyncRunUpdate update) {
         Map<String, Object> payload = new LinkedHashMap<String, Object>();
         payload.put("syncRunId", Long.valueOf(runId));
-        liveUpdatePublisher.publish("syncRun.changed", payload);
-        liveUpdatePublisher.publish("dashboard.changed", payload);
+        if (update != null) {
+            payload.put("progressPercent", Integer.valueOf(update.getProgressPercent()));
+        }
+        safePublish("syncRun.changed", payload);
+        safePublish("dashboard.changed", payload);
     }
 
     private void publishLogChanged(long runId) {
         Map<String, Object> payload = new LinkedHashMap<String, Object>();
         payload.put("syncRunId", Long.valueOf(runId));
-        liveUpdatePublisher.publish("syncRun.log.changed", payload);
-        liveUpdatePublisher.publish("dashboard.changed", payload);
+        safePublish("syncRun.log.changed", payload);
+        safePublish("dashboard.changed", payload);
+    }
+
+    private void safePublish(String type, Map<String, Object> payload) {
+        try {
+            liveUpdatePublisher.publish(type, payload);
+        } catch (RuntimeException e) {
+            log.warn("Cannot publish live update: type={}, syncRunId={}, error={}",
+                    type, payload == null ? null : payload.get("syncRunId"), e.getMessage());
+        }
     }
 
     private Map<String, Object> summaryDetails(NsiSyncRunUpdate update) {
@@ -276,11 +313,13 @@ public class SyncRunService {
             this.dictionaryIdentifier = dictionaryIdentifier;
         }
 
-        private void update(SyncErrorStage stage, NsiSyncRunUpdate update) {
+        private NsiSyncRunUpdate update(SyncErrorStage stage, NsiSyncRunUpdate update) {
+            NsiSyncRunUpdate previousUpdate = this.update.copy();
             if (stage != null) {
                 this.stage = stage;
             }
             this.update = update.copy();
+            return previousUpdate;
         }
 
         private NsiSyncRunUpdate updateWithStopMessage(String message) {

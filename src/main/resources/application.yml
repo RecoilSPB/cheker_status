@@ -44,7 +44,6 @@ gitlab:
   max-file-size-bytes: ${GITLAB_MAX_FILE_SIZE_BYTES:1048576}
   retry-count: ${GITLAB_RETRY_COUNT:3}
   retry-delay-ms: ${GITLAB_RETRY_DELAY_MS:1000}
-  virtual-threads-enabled: ${GITLAB_VIRTUAL_THREADS_ENABLED:true}
   max-concurrent-projects: ${GITLAB_MAX_CONCURRENT_PROJECTS:8}
   max-concurrent-commits: ${GITLAB_MAX_CONCURRENT_COMMITS:16}
   max-concurrent-files: ${GITLAB_MAX_CONCURRENT_FILES:32}

@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
+import org.springframework.web.socket.handler.ConcurrentWebSocketSessionDecorator;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import java.io.IOException;
@@ -23,6 +24,8 @@ import java.util.concurrent.ConcurrentMap;
 public class WebSocketLiveUpdatePublisher extends TextWebSocketHandler implements LiveUpdatePublisher {
 
     private static final Logger log = LoggerFactory.getLogger(WebSocketLiveUpdatePublisher.class);
+    private static final int SEND_TIME_LIMIT_MS = 10_000;
+    private static final int BUFFER_SIZE_LIMIT_BYTES = 64 * 1024;
 
     private final ConcurrentMap<String, WebSocketSession> sessions = new ConcurrentHashMap<String, WebSocketSession>();
     private final ObjectMapper objectMapper;
@@ -33,7 +36,11 @@ public class WebSocketLiveUpdatePublisher extends TextWebSocketHandler implement
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
-        sessions.put(session.getId(), session);
+        sessions.put(session.getId(), new ConcurrentWebSocketSessionDecorator(
+                session,
+                SEND_TIME_LIMIT_MS,
+                BUFFER_SIZE_LIMIT_BYTES
+        ));
     }
 
     @Override
@@ -63,10 +70,26 @@ public class WebSocketLiveUpdatePublisher extends TextWebSocketHandler implement
             try {
                 session.sendMessage(message);
             } catch (IOException e) {
-                sessions.remove(session.getId());
+                removeSession(session);
                 log.debug("Cannot send live update: session={}, type={}, error={}",
                         session.getId(), type, e.getMessage());
+            } catch (RuntimeException e) {
+                removeSession(session);
+                log.warn("Cannot send live update: session={}, type={}, error={}",
+                        session.getId(), type, e.getMessage());
             }
+        }
+    }
+
+    private void removeSession(WebSocketSession session) {
+        sessions.remove(session.getId());
+        try {
+            if (session.isOpen()) {
+                session.close(CloseStatus.SERVER_ERROR);
+            }
+        } catch (IOException e) {
+            log.debug("Cannot close live update WebSocket session: session={}, error={}",
+                    session.getId(), e.getMessage());
         }
     }
 

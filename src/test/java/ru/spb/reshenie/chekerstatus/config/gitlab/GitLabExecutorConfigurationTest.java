@@ -10,10 +10,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 class GitLabExecutorConfigurationTest {
 
     @Test
-    void gitLabExecutorUsesVirtualThreadsWhenEnabled() throws Exception {
-        GitLabProperties properties = new GitLabProperties();
-        properties.setVirtualThreadsEnabled(true);
-        ExecutorService executorService = new GitLabExecutorConfiguration().gitLabVirtualThreadExecutor(properties);
+    void gitLabExecutorUsesVirtualThreads() throws Exception {
+        ExecutorService executorService = new GitLabExecutorConfiguration().gitLabVirtualThreadExecutor();
 
         try {
             Future<Boolean> virtualThread = executorService.submit(new java.util.concurrent.Callable<Boolean>() {

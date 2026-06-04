@@ -86,10 +86,6 @@ public class GitCommitFileHistoryService {
                     document, null, null, "GitLab file-history отключен", null);
             return GitFileHistorySyncResult.disabled();
         }
-        if (!settings.isVirtualThreadsEnabled()) {
-            return synchronizeDocumentFilesSequentially(document, runId, dictionaryIdentifier);
-        }
-
         List<StoredGitLabCommit> commits = gitTrackingRepository.findCommitsPendingFileHistory(document.getId());
         addLog(runId, SyncRunLogLevel.INFO, SyncErrorStage.GITLAB_COMMIT_DIFF, dictionaryIdentifier,
                 document, null, null, "GitLab file-history: старт", pendingCommitDetails(commits.size()));
@@ -136,117 +132,6 @@ public class GitCommitFileHistoryService {
                 failedFiles.get(),
                 firstError.get(),
                 new ArrayList<GitSyncError>(errors)
-        );
-        log.info("GitLab file history tracking finished: documentOid={}, {}",
-                document.getDocumentOid(), result.summary());
-        addLog(runId, result.hasErrors() ? SyncRunLogLevel.WARN : SyncRunLogLevel.INFO,
-                SyncErrorStage.GITLAB_COMMIT_DIFF, dictionaryIdentifier, document, null, null,
-                "GitLab file-history: завершено", fileHistoryDetails(result));
-        return result;
-    }
-
-    private GitFileHistorySyncResult synchronizeDocumentFilesSequentially(DocumentGitLink document,
-                                                                         Long runId,
-                                                                         String dictionaryIdentifier) {
-        List<StoredGitLabCommit> commits = gitTrackingRepository.findCommitsPendingFileHistory(document.getId());
-        addLog(runId, SyncRunLogLevel.INFO, SyncErrorStage.GITLAB_COMMIT_DIFF, dictionaryIdentifier,
-                document, null, null, "GitLab file-history: старт", pendingCommitDetails(commits.size()));
-        int processedCommits = 0;
-        int processedFiles = 0;
-        int failedCommits = 0;
-        int failedFiles = 0;
-        String firstError = null;
-        List<GitSyncError> errors = new ArrayList<GitSyncError>();
-
-        for (StoredGitLabCommit commit : commits) {
-            int commitFailedFiles = 0;
-            String commitFirstError = null;
-            try {
-                addLog(runId, SyncRunLogLevel.INFO, SyncErrorStage.GITLAB_COMMIT_DIFF, dictionaryIdentifier,
-                        document, commit.getCommitSha(), null, "GitLab commit file-history: старт", null);
-                GitLabCommitDetails details = gitLabClient.fetchCommitDetails(document, commit.getCommitSha());
-                String parentSha = details.getFirstParentSha();
-                List<GitLabCommitDiff> diffs = gitLabClient.fetchCommitDiff(document, commit.getCommitSha());
-                addLog(runId, SyncRunLogLevel.INFO, SyncErrorStage.GITLAB_COMMIT_DIFF, dictionaryIdentifier,
-                        document, commit.getCommitSha(), null, "GitLab commit diff загружен",
-                        diffDetails(diffs.size()));
-                int fileLimit = settings.getMaxFilesPerCommit();
-                int fileIndex = 0;
-                for (GitLabCommitDiff diff : diffs) {
-                    if (fileLimit > 0 && fileIndex >= fileLimit) {
-                        log.warn("GitLab commit file limit reached: documentOid={}, commit={}, limit={}",
-                                document.getDocumentOid(), commit.getCommitSha(), fileLimit);
-                        break;
-                    }
-                    fileIndex++;
-                    GitCommitFileChange change = buildFileChange(document, commit, parentSha, diff);
-                    boolean inserted = limiter.withDbWritePermit(new Callable<Boolean>() {
-                        @Override
-                        public Boolean call() {
-                            return Boolean.valueOf(fileRepository.saveFileChange(change));
-                        }
-                    });
-                    if (inserted && !STATUS_FAILED.equals(change.getContentFetchStatus())) {
-                        processedFiles++;
-                    }
-                    if (STATUS_FAILED.equals(change.getContentFetchStatus())) {
-                        failedFiles++;
-                        commitFailedFiles++;
-                        if (firstError == null) {
-                            firstError = change.getContentFetchError();
-                        }
-                        if (commitFirstError == null) {
-                            commitFirstError = change.getContentFetchError();
-                        }
-                        errors.add(new GitSyncError(
-                                SyncErrorStage.GITLAB_FILE_CONTENT,
-                                document.getId(),
-                                document.getProjectPath(),
-                                commit.getCommitSha(),
-                                change.getFilePath(),
-                                change.getContentFetchError(),
-                                null
-                        ));
-                    }
-                }
-                if (commitFailedFiles > 0) {
-                    markCommitFileHistoryFailed(commit, commitFirstError);
-                } else {
-                    markCommitFileHistorySuccess(commit);
-                    processedCommits++;
-                    addLog(runId, SyncRunLogLevel.INFO, SyncErrorStage.GITLAB_COMMIT_DIFF, dictionaryIdentifier,
-                            document, commit.getCommitSha(), null, "GitLab commit file-history: успешно", null);
-                }
-            } catch (RuntimeException e) {
-                failedCommits++;
-                if (firstError == null) {
-                    firstError = e.getMessage();
-                }
-                errors.add(new GitSyncError(
-                        SyncErrorStage.GITLAB_COMMIT_DIFF,
-                        document.getId(),
-                        document.getProjectPath(),
-                        commit.getCommitSha(),
-                        null,
-                        e.getMessage(),
-                        e
-                ));
-                log.warn("Cannot synchronize GitLab commit files: documentOid={}, commit={}, error={}",
-                        document.getDocumentOid(), commit.getCommitSha(), e.getMessage());
-                log.debug("GitLab commit file synchronization error details", e);
-                markCommitFileHistoryFailed(commit, e.getMessage());
-                addLog(runId, SyncRunLogLevel.ERROR, SyncErrorStage.GITLAB_COMMIT_DIFF, dictionaryIdentifier,
-                        document, commit.getCommitSha(), null, "GitLab commit file-history: ошибка", e, null);
-            }
-        }
-
-        GitFileHistorySyncResult result = new GitFileHistorySyncResult(
-                processedCommits,
-                processedFiles,
-                failedCommits,
-                failedFiles,
-                firstError,
-                errors
         );
         log.info("GitLab file history tracking finished: documentOid={}, {}",
                 document.getDocumentOid(), result.summary());

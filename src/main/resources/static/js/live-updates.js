@@ -1,10 +1,11 @@
 (function (global) {
     "use strict";
 
-    var DEBOUNCE_MS = 150;
+    var REFRESH_INTERVAL_MS = 500;
     var MAX_RECONNECT_MS = 30000;
     var SCROLL_TOLERANCE_PX = 2;
     var timers = {};
+    var lastRefreshAt = {};
     var fragmentRequests = {};
     var queuedFragments = {};
     var progressStates = {};
@@ -22,14 +23,27 @@
         return String(element.dataset.syncRunId) === String(syncRunId);
     }
 
-    function debounce(key, callback) {
+    function scheduleRefresh(key, callback) {
+        var now = Date.now();
+        var last = lastRefreshAt[key] || 0;
+        var wait = Math.max(0, REFRESH_INTERVAL_MS - (now - last));
+        if (wait === 0) {
+            if (timers[key]) {
+                clearTimeout(timers[key]);
+                delete timers[key];
+            }
+            lastRefreshAt[key] = now;
+            callback();
+            return;
+        }
         if (timers[key]) {
-            clearTimeout(timers[key]);
+            return;
         }
         timers[key] = setTimeout(function () {
             delete timers[key];
+            lastRefreshAt[key] = Date.now();
             callback();
-        }, DEBOUNCE_MS);
+        }, wait);
     }
 
     function fragmentUrl(element) {
@@ -225,6 +239,25 @@
         });
     }
 
+    function applyLiveProgress(syncRunId, progressPercent) {
+        if (syncRunId == null || progressPercent == null) {
+            return;
+        }
+        var key = "run-" + syncRunId;
+        progressWidgets(document).forEach(function (widget) {
+            if (progressKey(widget) !== key) {
+                return;
+            }
+            var target = clampPercent(progressPercent);
+            var current = progressDisplayed(widget);
+            if (widget.dataset.progressRunning === "true") {
+                target = Math.max(current, target);
+            }
+            widget.dataset.progressValue = String(target);
+            setProgress(widget, target);
+        });
+    }
+
     function updateManualSyncButton(summary) {
         var summaryElement = summary && summary.id === "dashboard-summary" ? summary : byId("dashboard-summary");
         var button = byId("sync-start-button");
@@ -241,7 +274,7 @@
     }
 
     function refreshDashboard() {
-        debounce("dashboard", function () {
+        scheduleRefresh("dashboard", function () {
             var summary = byId("dashboard-summary");
             var runs = byId("sync-runs-panel");
             if (summary) {
@@ -258,7 +291,7 @@
         if (!sameRun(detail, syncRunId)) {
             return;
         }
-        debounce("sync-run-" + syncRunId, function () {
+        scheduleRefresh("sync-run-" + syncRunId, function () {
             replaceFragment(byId("sync-run-detail"));
         });
     }
@@ -268,7 +301,7 @@
         if (!sameRun(log, syncRunId)) {
             return;
         }
-        debounce("sync-run-log-" + syncRunId, function () {
+        scheduleRefresh("sync-run-log-" + syncRunId, function () {
             replaceFragment(byId("sync-run-log"));
         });
     }
@@ -276,6 +309,7 @@
     function handleLiveMessage(message) {
         var type = message.type;
         var syncRunId = message.syncRunId;
+        applyLiveProgress(syncRunId, message.progressPercent);
 
         if (type === "dashboard.changed" || type === "scheduler.changed") {
             refreshDashboard();
@@ -297,7 +331,8 @@
             return;
         }
         var protocol = global.location.protocol === "https:" ? "wss:" : "ws:";
-        socket = new WebSocket(protocol + "//" + global.location.host + "/ws/live");
+        var url = protocol + "//" + global.location.host + "/ws/live";
+        socket = new WebSocket(url);
         socket.onopen = function () {
             reconnectAttempt = 0;
             refreshVisibleFragments();
@@ -309,7 +344,9 @@
                 // Ignore malformed messages from stale tabs or proxy glitches.
             }
         };
-        socket.onclose = scheduleReconnect;
+        socket.onclose = function () {
+            scheduleReconnect();
+        };
         socket.onerror = function () {
             if (socket) {
                 socket.close();

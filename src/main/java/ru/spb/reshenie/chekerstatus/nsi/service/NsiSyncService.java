@@ -97,10 +97,14 @@ public class NsiSyncService {
         SyncProgressTracker progress = new SyncProgressTracker(settings.getProgressGitLinkWeight());
         SyncErrorStage stage = SyncErrorStage.NSI_PASSPORT;
         try {
+            progress.start();
+            applyProgress(update, progress);
+            updateProgress(runId, stage, update);
             addRunLog(runId, SyncRunLogLevel.INFO, stage, identifier, null, null, null, null,
                     "Загрузка паспорта НСИ", null, valueDetails("identifier", identifier));
             PassportDocument passport = client.fetchPassport(identifier);
             update.setDictionaryVersion(passport.getVersion());
+            update.setNsiRowsTotal(passport.getRowsCount());
             progress.setNsiRowsTotal(passport.getRowsCount());
             progress.completePassport();
             applyProgress(update, progress);
@@ -122,7 +126,7 @@ public class NsiSyncService {
                         passport.getDictionaryKey(), passport.getVersion());
                 addRunLog(runId, SyncRunLogLevel.INFO, stage, identifier, null, null, null, null,
                         "Версия НСИ уже загружена", null, passportSaveDetails(savedPassport));
-                progress.setNsiRowsTotal(0);
+                progress.addNsiRowsLoaded(update.getNsiRowsTotal());
                 stage = SyncErrorStage.GITLAB_COMMITS;
                 synchronizeGitDocuments(runId, identifier, update, progress, savedPassport.getDictionaryId());
                 updateProgress(runId, stage, update);
@@ -180,12 +184,12 @@ public class NsiSyncService {
                 identifier,
                 gitProgress -> {
                     applyGitCounters(update, gitProgress, baseErrorCount, baseErrorMessage);
-                    applyGitProgress(update, progress, gitProgress);
+                    applyGitProgress(update, progress, gitProgress, false);
                     updateProgress(runId, SyncErrorStage.GITLAB_COMMITS, update);
                 }
         );
         applyGitCounters(update, gitResult, baseErrorCount, baseErrorMessage);
-        applyGitProgress(update, progress, gitResult);
+        applyGitProgress(update, progress, gitResult, true);
         addGitErrors(runId, identifier, gitResult);
     }
 
@@ -194,7 +198,7 @@ public class NsiSyncService {
                                   int baseErrorCount,
                                   String baseErrorMessage) {
         update.setGitLinksFound(gitResult.getLinksFound());
-        update.setGitProjectsProcessed(gitResult.getProjectsProcessed());
+        update.setGitProjectsProcessed(gitResult.getProjectsChecked());
         update.setGitCommitsProcessed(gitResult.getCommitsProcessed());
         update.setGitFilesProcessed(gitResult.getFilesProcessed());
         update.setErrorCount(baseErrorCount + gitResult.getErrorCount());
@@ -318,8 +322,12 @@ public class NsiSyncService {
 
     private void applyGitProgress(NsiSyncRunUpdate update,
                                   SyncProgressTracker progress,
-                                  GitCommitTrackingResult gitResult) {
+                                  GitCommitTrackingResult gitResult,
+                                  boolean finalResult) {
         if (gitResult.getProjectsTotal() <= 0 && gitResult.getProjectsChecked() <= 0) {
+            if (finalResult) {
+                applyProgress(update, progress);
+            }
             return;
         }
         progress.updateGitLinks(gitResult.getProjectsChecked(), gitResult.getProjectsTotal());

@@ -40,7 +40,6 @@ class GitCommitTrackingServiceTest {
     @Test
     void progressIncludesCheckedGitLinksEvenWhenNoNewChangesWereFound() {
         GitLabProperties properties = new GitLabProperties();
-        properties.setVirtualThreadsEnabled(false);
         properties.setRequireToken(false);
         GitTrackingRepository repository = mock(GitTrackingRepository.class);
         GitLabSyncExecutor executor = mock(GitLabSyncExecutor.class);
@@ -57,7 +56,7 @@ class GitCommitTrackingServiceTest {
                 0,
                 0
         ));
-        when(executor.synchronizeDocumentsSequentially(eq(documents), eq(null), eq(null), any()))
+        when(executor.synchronizeDocuments(eq(documents), eq(null), eq(null), any()))
                 .thenAnswer(invocation -> {
                     @SuppressWarnings("unchecked")
                     Consumer<GitCommitTrackingResult> listener =
@@ -88,7 +87,6 @@ class GitCommitTrackingServiceTest {
 
     private GitCommitTrackingResult synchronizeWithInsertedLinks(int insertedLinks) {
         GitLabProperties properties = new GitLabProperties();
-        properties.setVirtualThreadsEnabled(false);
         properties.setRequireToken(false);
         GitTrackingRepository repository = mock(GitTrackingRepository.class);
         GitLabSyncExecutor executor = mock(GitLabSyncExecutor.class);
@@ -103,7 +101,7 @@ class GitCommitTrackingServiceTest {
                 0,
                 0
         ));
-        when(executor.synchronizeDocumentsSequentially(
+        when(executor.synchronizeDocuments(
                 eq(Collections.singletonList(document)),
                 eq(null),
                 eq(null),

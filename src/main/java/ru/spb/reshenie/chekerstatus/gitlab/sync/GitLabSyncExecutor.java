@@ -9,7 +9,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
-import ru.spb.reshenie.chekerstatus.config.gitlab.GitLabProperties;
 import ru.spb.reshenie.chekerstatus.gitlab.client.GitLabClient;
 import ru.spb.reshenie.chekerstatus.gitlab.repository.GitTrackingRepository;
 import ru.spb.reshenie.chekerstatus.gitlab.service.GitCommitFileHistoryService;
@@ -22,6 +21,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CompletionService;
+import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -32,7 +33,6 @@ public class GitLabSyncExecutor {
 
     private static final Logger log = LoggerFactory.getLogger(GitLabSyncExecutor.class);
 
-    private final GitLabProperties settings;
     private final GitLabClient gitLabClient;
     private final GitTrackingRepository repository;
     private final GitCommitFileHistoryService fileHistoryService;
@@ -40,14 +40,12 @@ public class GitLabSyncExecutor {
     private final GitLabConcurrencyLimiter limiter;
     private final SyncRunService syncRunService;
 
-    public GitLabSyncExecutor(GitLabProperties settings,
-                                           GitLabClient gitLabClient,
-                                           GitTrackingRepository repository,
-                                           GitCommitFileHistoryService fileHistoryService,
-                                           @Qualifier("gitLabVirtualThreadExecutor") ExecutorService executorService,
-                                           GitLabConcurrencyLimiter limiter,
-                                           SyncRunService syncRunService) {
-        this.settings = settings;
+    public GitLabSyncExecutor(GitLabClient gitLabClient,
+                              GitTrackingRepository repository,
+                              GitCommitFileHistoryService fileHistoryService,
+                              @Qualifier("gitLabVirtualThreadExecutor") ExecutorService executorService,
+                              GitLabConcurrencyLimiter limiter,
+                              SyncRunService syncRunService) {
         this.gitLabClient = gitLabClient;
         this.repository = repository;
         this.fileHistoryService = fileHistoryService;
@@ -75,33 +73,53 @@ public class GitLabSyncExecutor {
         }
         result.setProjectsTotal(documents.size());
 
-        log.info("GitLab synchronization started: documents={}, virtualThreads={}, limits projects={}, commits={}, files={}, dbWrites={}",
-                documents.size(),
-                settings.isVirtualThreadsEnabled(),
-                settings.getMaxConcurrentProjects(),
-                settings.getMaxConcurrentCommits(),
-                settings.getMaxConcurrentFiles(),
-                settings.getMaxConcurrentDbWrites());
+        log.info("GitLab synchronization started: documents={}", documents.size());
 
-        List<ProjectFuture> futures = new ArrayList<ProjectFuture>();
+        CompletionService<ProjectResult> completionService =
+                new ExecutorCompletionService<ProjectResult>(executorService);
+        List<Future<ProjectResult>> futures = new ArrayList<Future<ProjectResult>>();
         for (DocumentGitLink document : documents) {
-            Future<GitCommitTrackingResult> future = executorService.submit(new Callable<GitCommitTrackingResult>() {
+            Future<ProjectResult> future = completionService.submit(new Callable<ProjectResult>() {
                 @Override
-                public GitCommitTrackingResult call() {
-                    return limiter.withProjectPermit(new Callable<GitCommitTrackingResult>() {
-                        @Override
-                        public GitCommitTrackingResult call() {
-                            return synchronizeDocument(document, runId, dictionaryIdentifier);
-                        }
-                    });
+                public ProjectResult call() {
+                    try {
+                        GitCommitTrackingResult documentResult = limiter.withProjectPermit(
+                                new Callable<GitCommitTrackingResult>() {
+                                    @Override
+                                    public GitCommitTrackingResult call() {
+                                        return synchronizeDocument(document, runId, dictionaryIdentifier);
+                                    }
+                                });
+                        return ProjectResult.success(document, documentResult);
+                    } catch (RuntimeException e) {
+                        return ProjectResult.failure(document, e);
+                    }
                 }
             });
-            futures.add(new ProjectFuture(document, future));
+            futures.add(future);
         }
 
-        for (ProjectFuture projectFuture : futures) {
+        for (int index = 0; index < futures.size(); index++) {
             try {
-                result.merge(projectFuture.future.get());
+                ProjectResult projectResult = completionService.take().get();
+                if (projectResult.error == null) {
+                    result.merge(projectResult.result);
+                } else {
+                    result.addError(new GitSyncError(
+                            SyncErrorStage.GITLAB_COMMITS,
+                            projectResult.document.getId(),
+                            projectResult.document.getProjectPath(),
+                            null,
+                            null,
+                            projectResult.error.getMessage(),
+                            projectResult.error
+                    ));
+                    log.warn("GitLab project task failed: documentOid={}, project={}, error={}",
+                            projectResult.document.getDocumentOid(),
+                            projectResult.document.getProjectPath(),
+                            projectResult.error.getMessage());
+                    log.debug("GitLab project task failure details", projectResult.error);
+                }
                 result.incrementProjectsChecked();
                 notifyProgress(progressListener, result);
             } catch (InterruptedException e) {
@@ -110,53 +128,15 @@ public class GitLabSyncExecutor {
                 throw new GitSyncException("Interrupted while waiting for GitLab project synchronization", e);
             } catch (ExecutionException e) {
                 Throwable cause = e.getCause() == null ? e : e.getCause();
-                result.addError(new GitSyncError(
-                        SyncErrorStage.GITLAB_COMMITS,
-                        projectFuture.document.getId(),
-                        projectFuture.document.getProjectPath(),
-                        null,
-                        null,
-                        cause.getMessage(),
-                        cause
-                ));
-                log.warn("GitLab project task failed: documentOid={}, project={}, error={}",
-                        projectFuture.document.getDocumentOid(),
-                        projectFuture.document.getProjectPath(),
-                        cause.getMessage());
+                result.addError(new GitSyncError(SyncErrorStage.GITLAB_COMMITS, null, null, null, null,
+                        cause.getMessage(), cause));
+                log.warn("GitLab project task failed before result was returned: error={}", cause.getMessage());
                 log.debug("GitLab project task failure details", cause);
                 result.incrementProjectsChecked();
                 notifyProgress(progressListener, result);
             }
         }
 
-        return result;
-    }
-
-    public GitCommitTrackingResult synchronizeDocumentsSequentially(List<DocumentGitLink> documents) {
-        return synchronizeDocumentsSequentially(documents, null);
-    }
-
-    public GitCommitTrackingResult synchronizeDocumentsSequentially(List<DocumentGitLink> documents,
-                                                                    Consumer<GitCommitTrackingResult> progressListener) {
-        return synchronizeDocumentsSequentially(documents, null, null, progressListener);
-    }
-
-    public GitCommitTrackingResult synchronizeDocumentsSequentially(List<DocumentGitLink> documents,
-                                                                    Long runId,
-                                                                    String dictionaryIdentifier,
-                                                                    Consumer<GitCommitTrackingResult> progressListener) {
-        GitCommitTrackingResult result = new GitCommitTrackingResult();
-        if (documents == null || documents.isEmpty()) {
-            return result;
-        }
-        result.setProjectsTotal(documents.size());
-
-        log.info("GitLab synchronization started in sequential fallback: documents={}", documents.size());
-        for (DocumentGitLink document : documents) {
-            result.merge(synchronizeDocument(document, runId, dictionaryIdentifier));
-            result.incrementProjectsChecked();
-            notifyProgress(progressListener, result);
-        }
         return result;
     }
 
@@ -247,9 +227,9 @@ public class GitLabSyncExecutor {
         }
     }
 
-    private void cancel(List<ProjectFuture> futures) {
-        for (ProjectFuture future : futures) {
-            future.future.cancel(true);
+    private void cancel(List<Future<ProjectResult>> futures) {
+        for (Future<ProjectResult> future : futures) {
+            future.cancel(true);
         }
     }
 
@@ -314,13 +294,23 @@ public class GitLabSyncExecutor {
         return details;
     }
 
-    private static class ProjectFuture {
+    private static class ProjectResult {
         private final DocumentGitLink document;
-        private final Future<GitCommitTrackingResult> future;
+        private final GitCommitTrackingResult result;
+        private final RuntimeException error;
 
-        private ProjectFuture(DocumentGitLink document, Future<GitCommitTrackingResult> future) {
+        private ProjectResult(DocumentGitLink document, GitCommitTrackingResult result, RuntimeException error) {
             this.document = document;
-            this.future = future;
+            this.result = result;
+            this.error = error;
+        }
+
+        private static ProjectResult success(DocumentGitLink document, GitCommitTrackingResult result) {
+            return new ProjectResult(document, result, null);
+        }
+
+        private static ProjectResult failure(DocumentGitLink document, RuntimeException error) {
+            return new ProjectResult(document, null, error);
         }
     }
 }

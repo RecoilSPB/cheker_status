@@ -29,7 +29,6 @@ class GitLabSyncExecutorTest {
     @Test
     void projectErrorDoesNotStopOtherProjects() throws Exception {
         GitLabProperties properties = new GitLabProperties();
-        properties.setVirtualThreadsEnabled(true);
         ExecutorService executorService = Executors.newThreadPerTaskExecutor(
                 Thread.ofVirtual().name("test-project-vt-", 0).factory()
         );
@@ -54,7 +53,6 @@ class GitLabSyncExecutorTest {
 
         try {
             GitLabSyncExecutor syncExecutor = new GitLabSyncExecutor(
-                    properties,
                     gitLabClient,
                     repository,
                     fileHistoryService,
@@ -81,7 +79,6 @@ class GitLabSyncExecutorTest {
     @Test
     void alreadyKnownAndLoadedProjectDoesNotIncreaseNewCounters() {
         GitLabProperties properties = new GitLabProperties();
-        properties.setVirtualThreadsEnabled(false);
         ExecutorService executorService = Executors.newSingleThreadExecutor();
         GitLabClient gitLabClient = mock(GitLabClient.class);
         GitTrackingRepository repository = mock(GitTrackingRepository.class);
@@ -96,7 +93,6 @@ class GitLabSyncExecutorTest {
 
         try {
             GitLabSyncExecutor syncExecutor = new GitLabSyncExecutor(
-                    properties,
                     gitLabClient,
                     repository,
                     fileHistoryService,
@@ -105,7 +101,7 @@ class GitLabSyncExecutorTest {
                     mock(SyncRunService.class)
             );
 
-            GitCommitTrackingResult result = syncExecutor.synchronizeDocumentsSequentially(
+            GitCommitTrackingResult result = syncExecutor.synchronizeDocuments(
                     Collections.singletonList(document)
             );
 

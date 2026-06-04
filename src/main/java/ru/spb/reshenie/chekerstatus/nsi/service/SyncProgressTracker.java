@@ -18,6 +18,10 @@ final class SyncProgressTracker {
         this.gitLinkWeight = Math.max(1, gitLinkWeight);
     }
 
+    void start() {
+        lastPercent = Math.max(lastPercent, 1);
+    }
+
     void completePassport() {
         passportCompleted = true;
     }
@@ -50,7 +54,7 @@ final class SyncProgressTracker {
             return lastPercent;
         }
         long completedUnits = completedUnits();
-        int calculated = (int) Math.floor((completedUnits * 100.0d) / totalUnits);
+        int calculated = (int) Math.ceil((completedUnits * 100.0d) / totalUnits);
         calculated = Math.min(MAX_RUNNING_PERCENT, Math.max(0, calculated));
         lastPercent = Math.max(lastPercent, calculated);
         return lastPercent;

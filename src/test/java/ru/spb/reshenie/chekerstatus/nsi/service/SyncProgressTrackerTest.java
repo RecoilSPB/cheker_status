@@ -7,6 +7,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 class SyncProgressTrackerTest {
 
     @Test
+    void runningProgressStartsAboveZero() {
+        SyncProgressTracker progress = new SyncProgressTracker(100);
+
+        progress.start();
+
+        assertThat(progress.runningPercent()).isEqualTo(1);
+    }
+
+    @Test
     void runningProgressDoesNotReachOneHundredBeforeFinish() {
         SyncProgressTracker progress = new SyncProgressTracker(100);
 
@@ -35,10 +44,10 @@ class SyncProgressTrackerTest {
         progress.setNsiRowsTotal(0);
         progress.setGitLinksTotal(2);
 
-        assertThat(progress.runningPercent()).isZero();
+        assertThat(progress.runningPercent()).isEqualTo(1);
 
         progress.updateGitLinks(1, 2);
-        assertThat(progress.runningPercent()).isEqualTo(50);
+        assertThat(progress.runningPercent()).isEqualTo(51);
 
         progress.updateGitLinks(2, 2);
         assertThat(progress.runningPercent()).isEqualTo(99);
@@ -52,9 +61,9 @@ class SyncProgressTrackerTest {
         progress.completePassport();
         progress.addNsiRowsLoaded(50);
 
-        assertThat(progress.runningPercent()).isEqualTo(50);
+        assertThat(progress.runningPercent()).isEqualTo(51);
 
         progress.setGitLinksTotal(10);
-        assertThat(progress.runningPercent()).isEqualTo(50);
+        assertThat(progress.runningPercent()).isEqualTo(51);
     }
 }

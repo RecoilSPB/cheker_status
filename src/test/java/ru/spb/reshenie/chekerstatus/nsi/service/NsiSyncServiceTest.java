@@ -23,10 +23,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -110,6 +112,111 @@ class NsiSyncServiceTest {
         assertThat(updates)
                 .extracting(NsiSyncRunUpdate::getProgressPercent)
                 .contains(60, 99);
+    }
+
+    @Test
+    void progressMovesWhenLoadedDictionaryHasNoGitWork() throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper();
+        PassportDocument passport = PassportDocument.fromJson("identifier", objectMapper.readTree(
+                "{\"result\":\"OK\",\"identifier\":\"identifier\",\"oid\":\"oid\",\"version\":\"1\",\"rowsCount\":10000,\"fields\":[]}"
+        ));
+        List<NsiSyncRunUpdate> updates = new ArrayList<NsiSyncRunUpdate>();
+
+        when(client.fetchPassport("identifier")).thenReturn(passport);
+        when(persistenceService.savePassport(passport)).thenReturn(new PassportSaveResult(10L, 20L, true));
+        when(gitCommitTrackingService.synchronizeDictionaryDocuments(eq(10L), eq(1L), eq("identifier"), any()))
+                .thenReturn(new GitCommitTrackingResult());
+        doAnswer(invocation -> {
+            NsiSyncRunUpdate update = invocation.getArgument(2);
+            updates.add(update.copy());
+            return null;
+        }).when(syncRunService).safeUpdateProgress(eq(1L), any(), any());
+
+        service.synchronizeDictionary(1L, "identifier", false);
+
+        assertThat(updates)
+                .extracting(NsiSyncRunUpdate::getProgressPercent)
+                .contains(1, 99);
+        assertThat(updates)
+                .anySatisfy(update -> assertThat(update.getNsiRowsTotal()).isEqualTo(10000));
+        verify(client, never()).fetchDataPage(eq(passport), anyInt(), anyInt());
+    }
+
+    @Test
+    void loadedDictionaryProgressCountsNsiRowsBeforeGitProjectsFinish() throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper();
+        PassportDocument passport = PassportDocument.fromJson("identifier", objectMapper.readTree(
+                "{\"result\":\"OK\",\"identifier\":\"identifier\",\"oid\":\"oid\",\"version\":\"1\",\"rowsCount\":100,\"fields\":[]}"
+        ));
+        List<NsiSyncRunUpdate> updates = new ArrayList<NsiSyncRunUpdate>();
+
+        when(client.fetchPassport("identifier")).thenReturn(passport);
+        when(persistenceService.savePassport(passport)).thenReturn(new PassportSaveResult(10L, 20L, true));
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            Consumer<GitCommitTrackingResult> listener = invocation.getArgument(3);
+            GitCommitTrackingResult discoveredProjects = new GitCommitTrackingResult();
+            discoveredProjects.setProjectsTotal(1);
+            listener.accept(discoveredProjects);
+            GitCommitTrackingResult finishedProjects = new GitCommitTrackingResult();
+            finishedProjects.setProjectsTotal(1);
+            finishedProjects.addProjectsChecked(1);
+            return finishedProjects;
+        }).when(gitCommitTrackingService)
+                .synchronizeDictionaryDocuments(eq(10L), eq(1L), eq("identifier"), any());
+        doAnswer(invocation -> {
+            NsiSyncRunUpdate update = invocation.getArgument(2);
+            updates.add(update.copy());
+            return null;
+        }).when(syncRunService).safeUpdateProgress(eq(1L), any(), any());
+
+        service.synchronizeDictionary(1L, "identifier", false);
+
+        assertThat(updates)
+                .anySatisfy(update -> {
+                    assertThat(update.getNsiRowsTotal()).isEqualTo(100);
+                    assertThat(update.getGitProjectsProcessed()).isZero();
+                    assertThat(update.getProgressPercent()).isEqualTo(51);
+                })
+                .anySatisfy(update -> {
+                    assertThat(update.getNsiRowsTotal()).isEqualTo(100);
+                    assertThat(update.getGitProjectsProcessed()).isEqualTo(1);
+                    assertThat(update.getProgressPercent()).isEqualTo(99);
+                });
+        verify(client, never()).fetchDataPage(eq(passport), anyInt(), anyInt());
+    }
+
+    @Test
+    void gitProgressCountsCheckedProjectsWhenNothingNewWasSaved() throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper();
+        PassportDocument passport = PassportDocument.fromJson("identifier", objectMapper.readTree(
+                "{\"result\":\"OK\",\"identifier\":\"identifier\",\"oid\":\"oid\",\"version\":\"1\",\"rowsCount\":10000,\"fields\":[]}"
+        ));
+        GitCommitTrackingResult gitResult = new GitCommitTrackingResult();
+        gitResult.setProjectsTotal(2);
+        gitResult.addProjectsChecked(2);
+        List<NsiSyncRunUpdate> updates = new ArrayList<NsiSyncRunUpdate>();
+
+        when(client.fetchPassport("identifier")).thenReturn(passport);
+        when(persistenceService.savePassport(passport)).thenReturn(new PassportSaveResult(10L, 20L, true));
+        when(gitCommitTrackingService.synchronizeDictionaryDocuments(eq(10L), eq(1L), eq("identifier"), any()))
+                .thenReturn(gitResult);
+        doAnswer(invocation -> {
+            NsiSyncRunUpdate update = invocation.getArgument(2);
+            updates.add(update.copy());
+            return null;
+        }).when(syncRunService).safeUpdateProgress(eq(1L), any(), any());
+
+        service.synchronizeDictionary(1L, "identifier", false);
+
+        assertThat(updates)
+                .anySatisfy(update -> {
+                    assertThat(update.getNsiRowsTotal()).isEqualTo(10000);
+                    assertThat(update.getProgressPercent()).isEqualTo(99);
+                    assertThat(update.getGitProjectsProcessed()).isEqualTo(2);
+                    assertThat(update.getGitCommitsProcessed()).isZero();
+                    assertThat(update.getGitFilesProcessed()).isZero();
+                });
     }
 
     @Test

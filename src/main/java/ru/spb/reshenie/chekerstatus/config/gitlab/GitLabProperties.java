@@ -18,7 +18,6 @@ public class GitLabProperties {
     private long maxFileSizeBytes = 1_048_576L;
     private int retryCount = 3;
     private long retryDelayMs = 1000L;
-    private boolean virtualThreadsEnabled = true;
     private int maxConcurrentProjects = 8;
     private int maxConcurrentCommits = 16;
     private int maxConcurrentFiles = 32;
@@ -127,14 +126,6 @@ public class GitLabProperties {
 
     public void setRetryDelayMs(long retryDelayMs) {
         this.retryDelayMs = retryDelayMs;
-    }
-
-    public boolean isVirtualThreadsEnabled() {
-        return virtualThreadsEnabled;
-    }
-
-    public void setVirtualThreadsEnabled(boolean virtualThreadsEnabled) {
-        this.virtualThreadsEnabled = virtualThreadsEnabled;
     }
 
     public int getMaxConcurrentProjects() {

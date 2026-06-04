@@ -113,10 +113,12 @@ public class GitCommitTrackingService {
                 notifyProgress(progressListener, progress);
             }
         };
-        GitCommitTrackingResult processedResult = settings.isVirtualThreadsEnabled()
-                ? syncExecutor.synchronizeDocuments(documentsToProcess, runId, dictionaryIdentifier, aggregateProgress)
-                : syncExecutor.synchronizeDocumentsSequentially(documentsToProcess, runId, dictionaryIdentifier,
-                        aggregateProgress);
+        GitCommitTrackingResult processedResult = syncExecutor.synchronizeDocuments(
+                documentsToProcess,
+                runId,
+                dictionaryIdentifier,
+                aggregateProgress
+        );
         result.merge(processedResult);
         notifyProgress(progressListener, result);
 

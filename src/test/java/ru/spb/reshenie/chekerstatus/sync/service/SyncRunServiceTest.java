@@ -9,10 +9,12 @@ import ru.spb.reshenie.chekerstatus.sync.model.SyncRunStatus;
 import ru.spb.reshenie.chekerstatus.sync.model.SyncRunType;
 import ru.spb.reshenie.chekerstatus.sync.service.LiveUpdatePublisher;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Collections;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -71,6 +73,21 @@ class SyncRunServiceTest {
 
         update.setProgressPercent(-20);
         assertThat(update.getProgressPercent()).isZero();
+    }
+
+    @Test
+    void publishesProgressPercentInLivePayload() {
+        NsiSyncRunUpdate update = new NsiSyncRunUpdate();
+        update.setProgressPercent(37);
+
+        service.updateProgress(30L, SyncErrorStage.GITLAB_COMMITS, update);
+
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        ArgumentCaptor<Map<String, Object>> payload = ArgumentCaptor.forClass((Class) Map.class);
+        verify(liveUpdatePublisher).publish(eq("syncRun.changed"), payload.capture());
+        assertThat(payload.getValue())
+                .containsEntry("syncRunId", Long.valueOf(30L))
+                .containsEntry("progressPercent", Integer.valueOf(37));
     }
 
     @Test
