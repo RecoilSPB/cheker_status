@@ -8,19 +8,16 @@
 </head>
 <body>
 <div class="app">
-    <aside class="sidebar" th:replace="~{fragments/sidebar :: sidebar(${active})}">
-        <div class="brand"><span class="brand-mark">N</span><span>NSI Git Monitor</span></div>
-        <nav class="nav">
-            <a th:classappend="${active == 'dashboard'} ? 'active' : ''" th:href="@{/dashboard}">Дашборд</a>
-            <a th:classappend="${active == 'documents'} ? 'active' : ''" th:href="@{/documents}">Документы</a>
-            <a th:classappend="${active == 'commits'} ? 'active' : ''" th:href="@{/commits}">Коммиты</a>
-            <a th:classappend="${active == 'fileChanges'} ? 'active' : ''" th:href="@{/file-changes}">История файлов</a>
-            <a th:href="@{/documents(status='ERROR')}">Ошибки</a>
-        </nav>
-    </aside>
+    <aside class="sidebar" th:replace="~{fragments/sidebar :: sidebar(${active})}"></aside>
     <main class="main">
         <div class="topbar">
             <div>
+                <button class="sidebar-toggle"
+                        id="sidebarToggle"
+                        type="button"
+                        onclick="document.body.classList.toggle('sidebar-open')">
+                    <span class="brand-mark">N</span>
+                </button>
                 <h1 class="page-title">Дашборд</h1>
                 <div class="page-subtitle">История запусков синхронизации НСИ и GitLab-истории</div>
             </div>

@@ -6,11 +6,40 @@
     <title th:text="${pageTitle} + ' - NSI Git Monitor'">Пользователь - NSI Git Monitor</title>
     <link rel="stylesheet" th:href="@{/css/app.css}">
 </head>
+<script>
+    const sidebarToggle = document.getElementById('sidebarToggle');
+    const sidebarOverlay = document.getElementById('sidebarOverlay');
+
+    function closeSidebar() {
+        document.body.classList.remove('sidebar-open');
+        sidebarToggle?.setAttribute('aria-expanded', 'false');
+    }
+
+    function toggleSidebar() {
+        const isOpen = document.body.classList.toggle('sidebar-open');
+        sidebarToggle?.setAttribute('aria-expanded', String(isOpen));
+    }
+
+    sidebarToggle?.addEventListener('click', toggleSidebar);
+    sidebarOverlay?.addEventListener('click', closeSidebar);
+
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') {
+            closeSidebar();
+        }
+    });
+</script>
 <body>
 <div class="app">
     <aside th:replace="~{fragments/sidebar :: sidebar(${active})}"></aside>
     <main class="main">
         <div class="topbar">
+            <button class="sidebar-toggle"
+                    id="sidebarToggle"
+                    type="button"
+                    onclick="document.body.classList.toggle('sidebar-open')">
+                <span class="brand-mark">N</span>
+            </button>
             <div>
                 <h1 class="page-title" th:text="${pageTitle}">Пользователь</h1>
                 <div class="page-subtitle">
@@ -38,10 +67,12 @@
                     <span class="status status-muted"
                           th:text="${'Прав: ' + managedUser.effectivePermissionCodes.size()}">Прав: 0</span>
                     <span class="status status-pending" th:if="${currentUsername == managedUser.username}">Это вы</span>
+                    <span>Пользователь активен</span>
+                    <input form="user-form" type="checkbox" name="enabled" th:checked="${managedUser.enabled}">
                 </div>
             </div>
 
-            <form class="access-form" th:action="${formAction}" method="post">
+            <form id="user-form" class="access-form" th:action="${formAction}" method="post">
                 <div class="form-grid">
                     <label>
                         <span>Логин</span>
@@ -58,10 +89,6 @@
                                autocomplete="new-password"
                                th:required="${!editing}"
                                th:placeholder="${editing ? 'Оставьте пустым, чтобы не менять' : ''}">
-                    </label>
-                    <label class="checkbox-row checkbox-row-inline">
-                        <input type="checkbox" name="enabled" th:checked="${managedUser.enabled}">
-                        <span>Пользователь активен</span>
                     </label>
                 </div>
 

@@ -45,6 +45,30 @@ a {
     padding: 24px 16px;
 }
 
+.topbar-title {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    min-width: 0;
+}
+
+.sidebar-toggle {
+    display: none;
+    width: 40px;
+    height: 40px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text);
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.sidebar-overlay {
+    display: none;
+}
+
 .brand {
     display: flex;
     align-items: center;
@@ -884,8 +908,46 @@ button.button:disabled {
         grid-template-columns: 1fr;
     }
 
+    .sidebar-toggle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+    }
+
     .sidebar {
+        display: block;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 280px;
+        max-width: 86vw;
+        height: 100vh;
+        z-index: 1000;
+        overflow-y: auto;
+        transform: translateX(-100%);
+        transition: transform 0.2s ease;
+        box-shadow: 18px 0 40px rgba(15, 23, 42, 0.28);
+    }
+
+    body.sidebar-open .sidebar {
+        transform: translateX(0);
+    }
+
+    .sidebar-overlay {
         display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 900;
+        background: rgba(15, 23, 42, 0.45);
+    }
+
+    body.sidebar-open .sidebar-overlay {
+        display: block;
+    }
+
+    body.sidebar-open {
+        overflow: hidden;
     }
 
     .stats {

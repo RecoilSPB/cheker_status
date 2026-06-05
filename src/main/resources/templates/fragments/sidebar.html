@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="ru" xmlns:th="http://www.thymeleaf.org">
 <body>
-<aside class="sidebar" th:fragment="sidebar(active)">
+<aside id="sidebar" class="sidebar" th:fragment="sidebar(active)">
     <div class="brand"><span class="brand-mark">N</span><span>NSI Git Monitor</span></div>
     <nav class="nav">
         <a th:if="${@securityAccessService.canViewDashboard()}"

@@ -11,6 +11,12 @@
     <aside th:replace="~{fragments/sidebar :: sidebar(${active})}"></aside>
     <main class="main">
         <div class="topbar">
+            <button class="sidebar-toggle"
+                    id="sidebarToggle"
+                    type="button"
+                    onclick="document.body.classList.toggle('sidebar-open')">
+                <span class="brand-mark">N</span>
+            </button>
             <div>
                 <h1 class="page-title">Пользователи и права</h1>
                 <div class="page-subtitle">Выберите пользователя для просмотра карточки и настройки доступа</div>
