@@ -187,6 +187,21 @@ class UiControllerTest {
         assertThat(html).contains("Файлы истории GitLab");
     }
 
+    @Test
+    @WithMockUser(authorities = SecurityPermissions.DASHBOARD_VIEW)
+    void dashboardRendersMobileSidebarCloseControls() throws Exception {
+        String html = mockMvc.perform(get("/dashboard"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString(StandardCharsets.UTF_8);
+
+        assertThat(html).contains("id=\"sidebarToggle\"");
+        assertThat(html).contains("aria-controls=\"sidebar\"");
+        assertThat(html).contains("data-sidebar-close");
+        assertThat(html).contains("/js/sidebar.js");
+    }
+
     @ParameterizedTest
     @CsvSource({
             "IDLE,Ожидание",

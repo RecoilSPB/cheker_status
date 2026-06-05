@@ -67,7 +67,10 @@ class AdminUserControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Добавить пользователя")))
                 .andExpect(content().string(containsString("href=\"/admin/users/new\"")))
-                .andExpect(content().string(containsString("href=\"/admin/users/1\"")));
+                .andExpect(content().string(containsString("href=\"/admin/users/1\"")))
+                .andExpect(content().string(containsString("id=\"sidebarToggle\"")))
+                .andExpect(content().string(containsString("data-sidebar-close")))
+                .andExpect(content().string(containsString("/js/sidebar.js")));
     }
 
     @Test

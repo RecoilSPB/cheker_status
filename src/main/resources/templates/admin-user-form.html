@@ -6,29 +6,6 @@
     <title th:text="${pageTitle} + ' - NSI Git Monitor'">Пользователь - NSI Git Monitor</title>
     <link rel="stylesheet" th:href="@{/css/app.css}">
 </head>
-<script>
-    const sidebarToggle = document.getElementById('sidebarToggle');
-    const sidebarOverlay = document.getElementById('sidebarOverlay');
-
-    function closeSidebar() {
-        document.body.classList.remove('sidebar-open');
-        sidebarToggle?.setAttribute('aria-expanded', 'false');
-    }
-
-    function toggleSidebar() {
-        const isOpen = document.body.classList.toggle('sidebar-open');
-        sidebarToggle?.setAttribute('aria-expanded', String(isOpen));
-    }
-
-    sidebarToggle?.addEventListener('click', toggleSidebar);
-    sidebarOverlay?.addEventListener('click', closeSidebar);
-
-    document.addEventListener('keydown', function (event) {
-        if (event.key === 'Escape') {
-            closeSidebar();
-        }
-    });
-</script>
 <body>
 <div class="app">
     <aside th:replace="~{fragments/sidebar :: sidebar(${active})}"></aside>
@@ -37,7 +14,9 @@
             <button class="sidebar-toggle"
                     id="sidebarToggle"
                     type="button"
-                    onclick="document.body.classList.toggle('sidebar-open')">
+                    aria-controls="sidebar"
+                    aria-expanded="false"
+                    aria-label="Открыть меню">
                 <span class="brand-mark">N</span>
             </button>
             <div>
@@ -45,7 +24,7 @@
                 <div class="page-subtitle">
                     <span th:text="${pageSubtitle}">Настройка ролей и прав</span>
                     <span th:if="${editing}"> · </span>
-                    <span th:if="${editing}" th:text="${managedUser.displayLabel} + ' (' + managedUser.username + ')'">User</span>
+                    <span th:if="${editing}" th:text="${managedUser.displayLabel + ' (' + managedUser.username + ')'}">User</span>
                 </div>
             </div>
             <div class="actions">

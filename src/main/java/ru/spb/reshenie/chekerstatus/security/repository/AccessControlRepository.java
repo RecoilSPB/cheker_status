@@ -1,5 +1,7 @@
 package ru.spb.reshenie.chekerstatus.security.repository;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -19,6 +21,7 @@ import java.util.Set;
 public class AccessControlRepository {
 
     private final JdbcTemplate jdbcTemplate;
+    private final Logger log = LoggerFactory.getLogger(getClass());
 
     public AccessControlRepository(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
@@ -45,35 +48,46 @@ public class AccessControlRepository {
     public ManagedUser findManagedUser(long userId) {
         List<ManagedUser> users = loadManagedUsers(
                 "SELECT id, username, display_name, enabled FROM app_user WHERE id = ? ORDER BY lower(username), id",
-                Long.valueOf(userId)
+                userId
         );
-        return users.isEmpty() ? null : users.get(0);
+        return users.isEmpty() ? null : users.getFirst();
     }
 
     public List<String> findAuthorityCodesByUserId(long userId) {
+        String sql = """
+                     with au as (select *
+                                   from app_user au
+                                  where au.id = ?)
+                     select authority
+                       from (select CONCAT('ROLE_', r.code) as authority
+                               from au
+                               join app_user_role ur
+                                 on ur.user_id = au.id
+                               join app_role r
+                                 on r.id = ur.role_id
+                             union
+                             select p.code as authority
+                               from au
+                               join app_user_permission up
+                                 on up.user_id = au.id
+                               join app_permission p
+                                 on p.id = up.permission_id
+                             union
+                             select p.code as authority
+                               from au
+                               join app_user_role ur
+                                 on ur.user_id = au.id
+                               join app_role_permission rp
+                                 on rp.role_id = ur.role_id
+                               join app_permission p
+                                 on p.id = rp.permission_id) authorities
+                     order by authority
+                     """;
+        log.info(sql);
         return jdbcTemplate.queryForList(
-                "SELECT authority FROM (" +
-                        "SELECT CONCAT('ROLE_', r.code) AS authority " +
-                        "FROM app_user_role ur " +
-                        "JOIN app_role r ON r.id = ur.role_id " +
-                        "WHERE ur.user_id = ? " +
-                        "UNION " +
-                        "SELECT p.code AS authority " +
-                        "FROM app_user_permission up " +
-                        "JOIN app_permission p ON p.id = up.permission_id " +
-                        "WHERE up.user_id = ? " +
-                        "UNION " +
-                        "SELECT p.code AS authority " +
-                        "FROM app_user_role ur " +
-                        "JOIN app_role_permission rp ON rp.role_id = ur.role_id " +
-                        "JOIN app_permission p ON p.id = rp.permission_id " +
-                        "WHERE ur.user_id = ? " +
-                        ") authorities " +
-                        "ORDER BY authority",
+                sql,
                 String.class,
-                Long.valueOf(userId),
-                Long.valueOf(userId),
-                Long.valueOf(userId)
+                userId
         );
     }
 

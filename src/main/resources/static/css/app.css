@@ -45,6 +45,13 @@ a {
     padding: 24px 16px;
 }
 
+.sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
 .topbar-title {
     display: flex;
     align-items: flex-start;
@@ -67,6 +74,20 @@ a {
 
 .sidebar-overlay {
     display: none;
+}
+
+.sidebar-close {
+    display: none;
+    width: 40px;
+    height: 40px;
+    border: 1px solid rgba(217, 225, 236, 0.18);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.06);
+    color: #ffffff;
+    font-size: 24px;
+    line-height: 1;
+    cursor: pointer;
+    flex: 0 0 auto;
 }
 
 .brand {
@@ -913,6 +934,12 @@ button.button:disabled {
         align-items: center;
         justify-content: center;
         flex: 0 0 auto;
+    }
+
+    .sidebar-close {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
     }
 
     .sidebar {
