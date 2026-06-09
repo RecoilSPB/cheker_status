@@ -1,6 +1,13 @@
 spring:
   application:
     name: cheker-status
+  thymeleaf:
+    prefix: file:${APP_TEMPLATES_PATH:./templates/}
+    cache: ${APP_TEMPLATES_CACHE:false}
+    check-template-location: true
+  web:
+    resources:
+      static-locations: file:${APP_STATIC_PATH:./static/}
   threads:
     virtual:
       enabled: true
@@ -52,4 +59,4 @@ gitlab:
 
 logging:
   level:
-    ru.spb.reshenie.chekerstatus: TRACE
+    ru.spb.reshenie: TRACE

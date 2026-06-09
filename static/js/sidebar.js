@@ -42,13 +42,6 @@
 
         overlay.addEventListener('click', closeSidebar);
 
-        sidebar.querySelectorAll('[data-sidebar-close]').forEach(function (button) {
-            button.addEventListener('click', function (event) {
-                event.preventDefault();
-                closeSidebar();
-            });
-        });
-
         sidebar.querySelectorAll('.nav a').forEach(function (link) {
             link.addEventListener('click', function (event) {
                 var currentUrl = new URL(window.location.href, window.location.origin);

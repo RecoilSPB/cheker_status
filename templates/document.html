@@ -11,14 +11,7 @@
     <aside th:replace="~{fragments/sidebar :: sidebar(${active})}"></aside>
     <main class="main">
         <div class="topbar">
-            <button class="sidebar-toggle"
-                    id="sidebarToggle"
-                    type="button"
-                    aria-controls="sidebar"
-                    aria-expanded="false"
-                    aria-label="Открыть меню">
-                <span class="brand-mark">N</span>
-            </button>
+            <th:block th:replace="~{fragments/common :: mobileToggle}"></th:block>
             <a class="button secondary" th:href="@{/documents}">К списку</a>
         </div>
 

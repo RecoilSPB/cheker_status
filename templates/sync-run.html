@@ -14,14 +14,7 @@
           th:fragment="run-detail"
           th:attr="data-sync-run-id=${details.run.id},data-run-status=${details.run.status.name()},data-live-fragment-url=@{/dashboard/sync-runs/{id}/fragment(id=${details.run.id})}">
         <div class="topbar">
-            <button class="sidebar-toggle"
-                    id="sidebarToggle"
-                    type="button"
-                    aria-controls="sidebar"
-                    aria-expanded="false"
-                    aria-label="Открыть меню">
-                <span class="brand-mark">N</span>
-            </button>
+            <th:block th:replace="~{fragments/common :: mobileToggle}"></th:block>
             <div class="actions">
                 <a class="button secondary" th:href="@{/dashboard}">К дашборду</a>
                 <a class="button secondary" th:href="@{/dashboard/sync-runs/{id}/logs(id=${details.run.id})}">Журнал действий</a>
@@ -139,7 +132,6 @@
         </section>
     </main>
 </div>
-<script th:src="@{/js/client-date-format.js}"></script>
-<script th:src="@{/js/live-updates.js}"></script>
+<th:block th:replace="~{fragments/common :: liveUpdateScripts}"></th:block>
 </body>
 </html>

@@ -11,18 +11,7 @@
     <aside th:replace="~{fragments/sidebar :: sidebar(${active})}"></aside>
     <main class="main">
         <div class="topbar">
-            <button class="sidebar-toggle"
-                    id="sidebarToggle"
-                    type="button"
-                    aria-controls="sidebar"
-                    aria-expanded="false"
-                    aria-label="Открыть меню">
-                <span class="brand-mark">N</span>
-            </button>
-            <div>
-                <h1 class="page-title">Пользователи и права</h1>
-                <div class="page-subtitle">Выберите пользователя для просмотра карточки и настройки доступа</div>
-            </div>
+            <th:block th:replace="~{fragments/common :: topbarTitleText('Пользователи и права', 'Выберите пользователя для просмотра карточки и настройки доступа')}"></th:block>
             <div class="actions">
                 <a class="button" th:href="@{/admin/users/new}">Добавить пользователя</a>
             </div>

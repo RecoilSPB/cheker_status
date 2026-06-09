@@ -11,28 +11,11 @@
     <aside class="sidebar" th:replace="~{fragments/sidebar :: sidebar(${active})}"></aside>
     <main class="main">
         <div class="topbar">
-            <button class="sidebar-toggle"
-                    id="sidebarToggle"
-                    type="button"
-                    aria-controls="sidebar"
-                    aria-expanded="false"
-                    aria-label="Открыть меню">
-                <span class="brand-mark">N</span>
-            </button>
-            <div>
-                <h1 class="page-title">История файлов</h1>
-                <div class="page-subtitle">Изменения файлов по документам: тип изменения, commit и статус загрузки content</div>
-            </div>
+            <th:block th:replace="~{fragments/common :: topbarTitleText('История файлов', 'Изменения файлов по документам: тип изменения, commit и статус загрузки content')}"></th:block>
             <a class="button secondary" th:href="@{/documents}">К документам</a>
         </div>
 
-        <section class="stats">
-            <div class="stat"><div class="stat-label">Документы</div><div class="stat-value" th:text="${stats.documents}">0</div></div>
-            <div class="stat"><div class="stat-label">Коммиты</div><div class="stat-value" th:text="${stats.commits}">0</div></div>
-            <div class="stat"><div class="stat-label">Изменения файлов</div><div class="stat-value" th:text="${stats.fileChanges}">0</div></div>
-            <div class="stat"><div class="stat-label">Ошибки</div><div class="stat-value" th:text="${stats.errors}">0</div></div>
-            <div class="stat"><div class="stat-label">Синхронизация</div><div class="stat-value" style="font-size:14px" th:text="${stats.lastSyncAt ?: 'нет данных'}">нет данных</div></div>
-        </section>
+        <section th:replace="~{fragments/common :: catalogStats(${stats})}"></section>
 
         <section class="panel">
             <div class="panel-header">

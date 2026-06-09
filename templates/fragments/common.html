@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<body>
+<th:block th:fragment="mobileToggle">
+    <button class="sidebar-toggle"
+            id="sidebarToggle"
+            type="button"
+            aria-controls="sidebar"
+            aria-expanded="false"
+            aria-label="Открыть меню">
+        <span class="brand-mark">N</span>
+    </button>
+</th:block>
+
+<div class="topbar-title" th:fragment="topbarTitle(title, subtitleContent)">
+    <th:block th:replace="~{fragments/common :: mobileToggle}"></th:block>
+    <div>
+        <h1 class="page-title" th:text="${title}">NSI Git Monitor</h1>
+        <div class="page-subtitle">
+            <th:block th:replace="${subtitleContent}"></th:block>
+        </div>
+    </div>
+</div>
+
+<div class="topbar-title" th:fragment="topbarTitleText(title, subtitle)">
+    <th:block th:replace="~{fragments/common :: mobileToggle}"></th:block>
+    <div>
+        <h1 class="page-title" th:text="${title}">NSI Git Monitor</h1>
+        <div class="page-subtitle" th:text="${subtitle}"></div>
+    </div>
+</div>
+
+<th:block th:fragment="emptySubtitle"></th:block>
+
+<section class="stats" th:fragment="catalogStats(stats)">
+    <div class="stat"><div class="stat-label">Документы</div><div class="stat-value" th:text="${stats.documents}">0</div></div>
+    <div class="stat"><div class="stat-label">Коммиты</div><div class="stat-value" th:text="${stats.commits}">0</div></div>
+    <div class="stat"><div class="stat-label">Изменения файлов</div><div class="stat-value" th:text="${stats.fileChanges}">0</div></div>
+    <div class="stat"><div class="stat-label">Ошибки</div><div class="stat-value" th:text="${stats.errors}">0</div></div>
+    <div class="stat"><div class="stat-label">Синхронизация</div><div class="stat-value" style="font-size:14px" th:text="${stats.lastSyncAt ?: 'нет данных'}">нет данных</div></div>
+</section>
+
+<th:block th:fragment="liveUpdateScripts">
+    <script th:src="@{/js/client-date-format.js}"></script>
+    <script th:src="@{/js/live-updates.js}"></script>
+</th:block>
+</body>
+</html>

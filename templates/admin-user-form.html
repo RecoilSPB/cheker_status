@@ -11,22 +11,7 @@
     <aside th:replace="~{fragments/sidebar :: sidebar(${active})}"></aside>
     <main class="main">
         <div class="topbar">
-            <button class="sidebar-toggle"
-                    id="sidebarToggle"
-                    type="button"
-                    aria-controls="sidebar"
-                    aria-expanded="false"
-                    aria-label="Открыть меню">
-                <span class="brand-mark">N</span>
-            </button>
-            <div>
-                <h1 class="page-title" th:text="${pageTitle}">Пользователь</h1>
-                <div class="page-subtitle">
-                    <span th:text="${pageSubtitle}">Настройка ролей и прав</span>
-                    <span th:if="${editing}"> · </span>
-                    <span th:if="${editing}" th:text="${managedUser.displayLabel + ' (' + managedUser.username + ')'}">User</span>
-                </div>
-            </div>
+            <th:block th:replace="~{fragments/common :: topbarTitleText(${pageTitle}, ${editing ? pageSubtitle + ' ' + managedUser.displayLabel + ' (' + managedUser.username + ')' : pageSubtitle})}"></th:block>
             <div class="actions">
                 <a class="button secondary" th:href="@{/admin/users}">К списку пользователей</a>
             </div>

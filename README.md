@@ -22,11 +22,38 @@ Start PostgreSQL:
 docker compose up -d postgres
 ```
 
+Run the full stack with external UI assets mounted into the container:
+
+```bash
+APP_PASSWORD=change-me NSI_USER_KEY=<nsi-user-key> GITLAB_TOKEN=<gitlab-token> NSI_SYNC_ON_STARTUP=true docker compose up --build
+```
+
 Build and run:
 
 ```bash
 mvn clean package
 APP_PASSWORD=change-me NSI_USER_KEY=<nsi-user-key> java -jar target/cheker-status-0.0.1-SNAPSHOT.jar
+```
+
+UI templates are loaded from the external `templates/` directory in the project root. For another location set `APP_TEMPLATES_PATH`, for example:
+
+```bash
+APP_TEMPLATES_PATH=/opt/cheker-status/templates/ java -jar target/cheker-status-0.0.1-SNAPSHOT.jar
+```
+
+External templates are re-read on every request by default because `APP_TEMPLATES_CACHE=false`. If you want production-style caching, set `APP_TEMPLATES_CACHE=true`.
+
+Static assets are also loaded from the external `static/` directory in the project root. For another location set `APP_STATIC_PATH`, for example:
+
+```bash
+APP_STATIC_PATH=/opt/cheker-status/static/ java -jar target/cheker-status-0.0.1-SNAPSHOT.jar
+```
+
+`docker-compose.yml` mounts both directories into the app container as read-only:
+
+```text
+./templates -> /app/templates
+./static -> /app/static
 ```
 
 By default the service tracks:
@@ -48,6 +75,9 @@ DB_PASSWORD=checker_status
 APP_SECURITY_ENABLED=true
 APP_USERNAME=admin
 APP_PASSWORD=
+APP_TEMPLATES_PATH=./templates/
+APP_TEMPLATES_CACHE=false
+APP_STATIC_PATH=./static/
 NSI_USER_KEY=
 NSI_PAGE_SIZE=100
 NSI_POLL_FIXED_DELAY_MS=3600000

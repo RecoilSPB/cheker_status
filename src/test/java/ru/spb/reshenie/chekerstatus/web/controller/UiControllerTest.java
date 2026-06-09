@@ -28,6 +28,10 @@ import ru.spb.reshenie.chekerstatus.sync.query.NsiSyncRunFilter;
 import ru.spb.reshenie.chekerstatus.sync.query.PagedResult;
 import ru.spb.reshenie.chekerstatus.sync.model.SyncRunStatus;
 import ru.spb.reshenie.chekerstatus.sync.model.SyncRunType;
+import ru.spb.reshenie.chekerstatus.web.model.CommitRow;
+import ru.spb.reshenie.chekerstatus.web.model.DashboardStats;
+import ru.spb.reshenie.chekerstatus.web.model.DocumentSummary;
+import ru.spb.reshenie.chekerstatus.web.model.FileChangeRow;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
@@ -69,6 +73,65 @@ class UiControllerTest {
 
     @BeforeEach
     void setUp() {
+        when(repository.dashboardStats()).thenReturn(new DashboardStats(
+                1L,
+                2L,
+                3L,
+                4L,
+                5L,
+                OffsetDateTime.of(2026, 6, 3, 10, 0, 0, 0, ZoneOffset.UTC)
+        ));
+        when(repository.documents(any(String.class), any(String.class))).thenReturn(Collections.singletonList(
+                new DocumentSummary(
+                        10L,
+                        "1.2.3",
+                        "Test document",
+                        "group/project",
+                        "main",
+                        "OK",
+                        null,
+                        OffsetDateTime.of(2026, 6, 3, 10, 0, 0, 0, ZoneOffset.UTC),
+                        7L,
+                        9L,
+                        0L
+                )
+        ));
+        when(repository.recentCommits(300)).thenReturn(Collections.singletonList(
+                new CommitRow(
+                        11L,
+                        10L,
+                        "Test document",
+                        "1234567890abcdef",
+                        "1234567890",
+                        "Commit title",
+                        "Author",
+                        OffsetDateTime.of(2026, 6, 3, 10, 0, 0, 0, ZoneOffset.UTC),
+                        2L,
+                        true,
+                        "https://example.test/commit/123"
+                )
+        ));
+        when(repository.recentFileChanges(300)).thenReturn(Collections.singletonList(
+                new FileChangeRow(
+                        12L,
+                        10L,
+                        "Test document",
+                        "1234567890abcdef",
+                        "abcdef1234567890",
+                        "modified",
+                        "old/path.xml",
+                        "new/path.xml",
+                        "new/path.xml",
+                        "SUCCESS",
+                        null,
+                        100L,
+                        120L,
+                        "before",
+                        "after",
+                        "@@ -1 +1 @@",
+                        OffsetDateTime.of(2026, 6, 3, 10, 0, 0, 0, ZoneOffset.UTC)
+                )
+        ));
         when(syncRunRepository.dashboardSummary()).thenReturn(new DashboardSummary(
                 "IDLE",
                 null,
@@ -189,7 +252,7 @@ class UiControllerTest {
 
     @Test
     @WithMockUser(authorities = SecurityPermissions.DASHBOARD_VIEW)
-    void dashboardRendersMobileSidebarCloseControls() throws Exception {
+    void dashboardRendersMobileSidebarControlsWithoutCloseButton() throws Exception {
         String html = mockMvc.perform(get("/dashboard"))
                 .andExpect(status().isOk())
                 .andReturn()
@@ -198,8 +261,47 @@ class UiControllerTest {
 
         assertThat(html).contains("id=\"sidebarToggle\"");
         assertThat(html).contains("aria-controls=\"sidebar\"");
-        assertThat(html).contains("data-sidebar-close");
+        assertThat(html).doesNotContain("data-sidebar-close");
         assertThat(html).contains("/js/sidebar.js");
+    }
+
+    @Test
+    @WithMockUser(authorities = {
+            SecurityPermissions.DOCUMENTS_VIEW,
+            SecurityPermissions.COMMITS_VIEW,
+            SecurityPermissions.FILE_CHANGES_VIEW
+    })
+    void listPagesRenderSharedTemplateFragments() throws Exception {
+        String documentsHtml = mockMvc.perform(get("/documents"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString(StandardCharsets.UTF_8);
+        String commitsHtml = mockMvc.perform(get("/commits"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString(StandardCharsets.UTF_8);
+        String fileChangesHtml = mockMvc.perform(get("/file-changes"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString(StandardCharsets.UTF_8);
+
+        assertThat(documentsHtml).contains("Документы");
+        assertThat(documentsHtml).contains("Синхронизация");
+        assertThat(documentsHtml).contains("id=\"sidebarToggle\"");
+        assertThat(documentsHtml).doesNotContain("data-sidebar-close");
+
+        assertThat(commitsHtml).contains("Коммиты");
+        assertThat(commitsHtml).contains("Синхронизация");
+        assertThat(commitsHtml).contains("id=\"sidebarToggle\"");
+        assertThat(commitsHtml).doesNotContain("data-sidebar-close");
+
+        assertThat(fileChangesHtml).contains("История файлов");
+        assertThat(fileChangesHtml).contains("Синхронизация");
+        assertThat(fileChangesHtml).contains("id=\"sidebarToggle\"");
+        assertThat(fileChangesHtml).doesNotContain("data-sidebar-close");
     }
 
     @ParameterizedTest

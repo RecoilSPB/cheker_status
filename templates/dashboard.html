@@ -11,18 +11,7 @@
     <aside class="sidebar" th:replace="~{fragments/sidebar :: sidebar(${active})}"></aside>
     <main class="main">
         <div class="topbar">
-            <div>
-                <button class="sidebar-toggle"
-                        id="sidebarToggle"
-                        type="button"
-                        aria-controls="sidebar"
-                        aria-expanded="false"
-                        aria-label="Открыть меню">
-                    <span class="brand-mark">N</span>
-                </button>
-                <h1 class="page-title">Дашборд</h1>
-                <div class="page-subtitle">История запусков синхронизации НСИ и GitLab-истории</div>
-            </div>
+            <th:block th:replace="~{fragments/common :: topbarTitleText('Дашборд', 'История запусков синхронизации НСИ и GitLab-истории')}"></th:block>
             <div class="actions">
                 <a class="button secondary" th:href="@{/dashboard}">Обновить</a>
                 <form th:if="${@securityAccessService.canManageSync()}" th:action="@{/dashboard/sync-runs}" method="post">
@@ -340,7 +329,6 @@
         </section>
     </main>
 </div>
-<script th:src="@{/js/client-date-format.js}"></script>
-<script th:src="@{/js/live-updates.js}"></script>
+<th:block th:replace="~{fragments/common :: liveUpdateScripts}"></th:block>
 </body>
 </html>

@@ -28,12 +28,18 @@ services:
       DB_PASSWORD: checker_status
       APP_USERNAME: ${APP_USERNAME:-admin}
       APP_PASSWORD: ${APP_PASSWORD:?Set APP_PASSWORD before starting the app}
+      APP_TEMPLATES_PATH: /app/templates/
+      APP_TEMPLATES_CACHE: "false"
+      APP_STATIC_PATH: /app/static/
       NSI_USER_KEY: ${NSI_USER_KEY:?Set NSI_USER_KEY before starting the app}
       GITLAB_TOKEN: ${GITLAB_TOKEN:?Set GITLAB_TOKEN before starting the app}
       NSI_TRUST_ALL_SSL: ${NSI_TRUST_ALL_SSL:-false}
       NSI_SYNC_ON_STARTUP: ${NSI_SYNC_ON_STARTUP:?Set NSI_SYNC_ON_STARTUP before starting the app}
     ports:
       - "8080:8080"
+    volumes:
+      - ./templates:/app/templates:ro
+      - ./static:/app/static:ro
 
 volumes:
   postgres-data:

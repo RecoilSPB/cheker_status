@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -69,7 +70,7 @@ class AdminUserControllerTest {
                 .andExpect(content().string(containsString("href=\"/admin/users/new\"")))
                 .andExpect(content().string(containsString("href=\"/admin/users/1\"")))
                 .andExpect(content().string(containsString("id=\"sidebarToggle\"")))
-                .andExpect(content().string(containsString("data-sidebar-close")))
+                .andExpect(content().string(not(containsString("data-sidebar-close"))))
                 .andExpect(content().string(containsString("/js/sidebar.js")));
     }
 
@@ -96,6 +97,7 @@ class AdminUserControllerTest {
         mockMvc.perform(get("/admin/users/1"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Карточка пользователя")))
+                .andExpect(content().string(containsString("Настройка ролей и точечных прав доступа Administrator (admin)")))
                 .andExpect(content().string(containsString("action=\"/admin/users/1\"")))
                 .andExpect(content().string(containsString("Administrator (admin)")));
     }

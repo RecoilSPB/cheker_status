@@ -11,23 +11,7 @@
     <aside class="sidebar" th:replace="~{fragments/sidebar :: sidebar(${active})}"></aside>
     <main class="main">
         <div class="topbar">
-            <button class="sidebar-toggle"
-                    id="sidebarToggle"
-                    type="button"
-                    aria-controls="sidebar"
-                    aria-expanded="false"
-                    aria-label="Открыть меню">
-                <span class="brand-mark">N</span>
-            </button>
-            <div>
-                <h1 class="page-title" th:text="'Журнал запуска #' + ${run.id}">Журнал запуска</h1>
-                <div class="page-subtitle">
-                    <time th:if="${run.startedAt != null}"
-                          th:attr="datetime=${run.startedAt},data-utc=${run.startedAt}"
-                          th:text="${@uiTimeFormatters.formatUtcDateTime(run.startedAt)}">date</time>
-                    <span th:text="${' · ' + run.displayStatus}"> · статус</span>
-                </div>
-            </div>
+            <th:block th:replace="~{fragments/common :: topbarTitleText(${ 'Журнал запуска #' + run.id }, ${(run.startedAt != null ? @uiTimeFormatters.formatUtcDateTime(run.startedAt) + ' · ' : '') + run.displayStatus})}"></th:block>
             <div class="actions">
                 <a class="button secondary" th:href="@{/dashboard}">К дашборду</a>
                 <a class="button secondary" th:href="@{/dashboard/sync-runs/{id}(id=${run.id})}">Детали запуска</a>
@@ -124,7 +108,6 @@
         </section>
     </main>
 </div>
-<script th:src="@{/js/client-date-format.js}"></script>
-<script th:src="@{/js/live-updates.js}"></script>
+<th:block th:replace="~{fragments/common :: liveUpdateScripts}"></th:block>
 </body>
 </html>
