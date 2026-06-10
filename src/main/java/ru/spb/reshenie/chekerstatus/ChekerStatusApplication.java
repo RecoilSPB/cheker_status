@@ -5,12 +5,18 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import ru.spb.reshenie.chekerstatus.config.gitlab.GitLabProperties;
+import ru.spb.reshenie.chekerstatus.config.minio.MinioProperties;
 import ru.spb.reshenie.chekerstatus.config.nsi.NsiProperties;
 import ru.spb.reshenie.chekerstatus.config.security.AppSecurityProperties;
 
 @EnableScheduling
 @SpringBootApplication
-@EnableConfigurationProperties({NsiProperties.class, GitLabProperties.class, AppSecurityProperties.class})
+@EnableConfigurationProperties({
+        NsiProperties.class,
+        GitLabProperties.class,
+        MinioProperties.class,
+        AppSecurityProperties.class
+})
 public class ChekerStatusApplication {
 
     public static void main(String[] args) {

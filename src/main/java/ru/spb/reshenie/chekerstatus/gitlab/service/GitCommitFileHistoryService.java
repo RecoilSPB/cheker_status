@@ -11,6 +11,8 @@ import ru.spb.reshenie.chekerstatus.gitlab.model.GitLabCommitDiff;
 import ru.spb.reshenie.chekerstatus.gitlab.model.GitLabFileContentResult;
 import ru.spb.reshenie.chekerstatus.gitlab.model.GitSyncError;
 import ru.spb.reshenie.chekerstatus.gitlab.model.StoredGitLabCommit;
+import ru.spb.reshenie.chekerstatus.gitlab.diff.TextContentDecoder;
+import ru.spb.reshenie.chekerstatus.gitlab.storage.GitFileStorage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -25,7 +27,6 @@ import ru.spb.reshenie.chekerstatus.sync.service.SyncRunService;
 import ru.spb.reshenie.chekerstatus.sync.model.SyncErrorStage;
 import ru.spb.reshenie.chekerstatus.sync.model.SyncRunLogLevel;
 
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -55,6 +56,8 @@ public class GitCommitFileHistoryService {
     private final GitCommitFileRepository fileRepository;
     private final ExecutorService executorService;
     private final GitLabConcurrencyLimiter limiter;
+    private final GitFileStorage gitFileStorage;
+    private final GitFileDiffProcessor gitFileDiffProcessor;
     private final SyncRunService syncRunService;
 
     public GitCommitFileHistoryService(GitLabProperties settings,
@@ -63,6 +66,8 @@ public class GitCommitFileHistoryService {
                                        GitCommitFileRepository fileRepository,
                                        @Qualifier("gitLabVirtualThreadExecutor") ExecutorService executorService,
                                        GitLabConcurrencyLimiter limiter,
+                                       GitFileStorage gitFileStorage,
+                                       GitFileDiffProcessor gitFileDiffProcessor,
                                        SyncRunService syncRunService) {
         this.settings = settings;
         this.gitLabClient = gitLabClient;
@@ -70,6 +75,8 @@ public class GitCommitFileHistoryService {
         this.fileRepository = fileRepository;
         this.executorService = executorService;
         this.limiter = limiter;
+        this.gitFileStorage = gitFileStorage;
+        this.gitFileDiffProcessor = gitFileDiffProcessor;
         this.syncRunService = syncRunService;
     }
 
@@ -243,12 +250,22 @@ public class GitCommitFileHistoryService {
                                        ConcurrentLinkedQueue<GitSyncError> errors) {
         try {
             GitCommitFileChange change = buildFileChange(document, commit, parentSha, diff);
-            boolean inserted = limiter.withDbWritePermit(new Callable<Boolean>() {
+            var savedChange = limiter.withDbWritePermit(new Callable<ru.spb.reshenie.chekerstatus.gitlab.model.SavedGitCommitFileChange>() {
                 @Override
-                public Boolean call() {
-                    return Boolean.valueOf(fileRepository.saveFileChange(change));
+                public ru.spb.reshenie.chekerstatus.gitlab.model.SavedGitCommitFileChange call() {
+                    return fileRepository.saveFileChangeRecord(change);
                 }
             });
+            if (savedChange == null) {
+                throw new IllegalStateException("Cannot save GitLab file change row");
+            }
+            boolean inserted = savedChange != null && savedChange.isInserted();
+            GitFileDiffProcessResult diffResult = gitFileDiffProcessor.process(savedChange.getId(), change);
+            if (diffResult.hasError()) {
+                addLog(runId, SyncRunLogLevel.WARN, SyncErrorStage.GITLAB_FILE_CONTENT, dictionaryIdentifier,
+                        document, commit.getCommitSha(), change.getFilePath(),
+                        "GitLab file-history: structured diff fallback/error", structuredDiffDetails(diffResult));
+            }
             if (inserted && !STATUS_FAILED.equals(change.getContentFetchStatus())) {
                 processedFiles.incrementAndGet();
                 if (STATUS_SUCCESS.equals(change.getContentFetchStatus())) {
@@ -513,6 +530,15 @@ public class GitCommitFileHistoryService {
         return details;
     }
 
+    private Map<String, Object> structuredDiffDetails(GitFileDiffProcessResult result) {
+        Map<String, Object> details = new LinkedHashMap<String, Object>();
+        details.put("status", result.getStatus());
+        details.put("diffType", result.getDiffType());
+        details.put("formatFamily", result.getFormatFamily());
+        details.put("error", result.getError());
+        return details;
+    }
+
     private ContentFetchOutcome fetchContent(DocumentGitLink document,
                                              String filePath,
                                              String ref,
@@ -526,7 +552,12 @@ public class GitCommitFileHistoryService {
             byte[] bytes = result.getContent();
             String sha256 = GitContentUtils.sha256(bytes);
             long size = bytes == null ? 0L : bytes.length;
-            GitFileContentSnapshot metadataOnly = new GitFileContentSnapshot(null, sha256, size);
+            if (gitFileStorage.storesExternally()) {
+                String objectKey = gitFileStorage.store(document, filePath, ref, bytes, sha256);
+                return ContentFetchOutcome.success(new GitFileContentSnapshot(null, objectKey, sha256, size, bytes));
+            }
+
+            GitFileContentSnapshot metadataOnly = new GitFileContentSnapshot(null, null, sha256, size, bytes);
 
             if (size > settings.getMaxFileSizeBytes()) {
                 return ContentFetchOutcome.skippedTooLarge(metadataOnly,
@@ -537,10 +568,10 @@ public class GitCommitFileHistoryService {
                         label + " looks binary: file=" + filePath + ", ref=" + ref);
             }
 
-            String content = new String(bytes == null ? new byte[0] : bytes, StandardCharsets.UTF_8);
-            return ContentFetchOutcome.success(new GitFileContentSnapshot(content, sha256, size));
+            String content = TextContentDecoder.decode(bytes, filePath);
+            return ContentFetchOutcome.success(new GitFileContentSnapshot(content, null, sha256, size, bytes));
         } catch (RuntimeException e) {
-            return ContentFetchOutcome.failed(label + " fetch failed: file=" + filePath
+            return ContentFetchOutcome.failed(label + " fetch/store failed: file=" + filePath
                     + ", ref=" + ref + ", error=" + e.getMessage());
         }
     }

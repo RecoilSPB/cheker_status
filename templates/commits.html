@@ -47,7 +47,13 @@
                     <td th:text="${commit.authorName ?: ''}">author</td>
                     <td>
                         <span th:if="${commit.fileHistoryLoaded}" th:text="${commit.fileCount}">0</span>
-                        <span class="muted" th:unless="${commit.fileHistoryLoaded}">не загружено</span>
+                        <span class="status"
+                              th:if="${commit.fileHistoryFailed}"
+                              th:classappend="${commit.fileHistoryStatusCss}"
+                              th:text="${commit.fileHistoryDisplayText}">error</span>
+                        <span class="muted"
+                              th:unless="${commit.fileHistoryLoaded or commit.fileHistoryFailed}"
+                              th:text="${commit.fileHistoryDisplayText == 'not loaded' ? 'не загружено' : commit.fileHistoryDisplayText}">не загружено</span>
                     </td>
                     <td class="muted" th:text="${commit.committedDate ?: ''}">date</td>
                     <td>

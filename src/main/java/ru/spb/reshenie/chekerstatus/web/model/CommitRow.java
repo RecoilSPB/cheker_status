@@ -12,7 +12,7 @@ public class CommitRow {
     private final String authorName;
     private final OffsetDateTime committedDate;
     private final long fileCount;
-    private final boolean fileHistoryLoaded;
+    private final String fileHistoryStatus;
     private final String webUrl;
 
     public CommitRow(long id,
@@ -23,7 +23,19 @@ public class CommitRow {
                      OffsetDateTime committedDate,
                      long fileCount,
                      String webUrl) {
-        this(id, 0, null, commitSha, shortId, title, authorName, committedDate, fileCount, true, webUrl);
+        this(id, 0, null, commitSha, shortId, title, authorName, committedDate, fileCount, "SUCCESS", webUrl);
+    }
+
+    public CommitRow(long id,
+                     String commitSha,
+                     String shortId,
+                     String title,
+                     String authorName,
+                     OffsetDateTime committedDate,
+                     long fileCount,
+                     String fileHistoryStatus,
+                     String webUrl) {
+        this(id, 0, null, commitSha, shortId, title, authorName, committedDate, fileCount, fileHistoryStatus, webUrl);
     }
 
     public CommitRow(long id,
@@ -35,8 +47,8 @@ public class CommitRow {
                      long fileCount,
                      boolean fileHistoryLoaded,
                      String webUrl) {
-        this(id, 0, null, commitSha, shortId, title, authorName, committedDate, fileCount, fileHistoryLoaded,
-                webUrl);
+        this(id, 0, null, commitSha, shortId, title, authorName, committedDate, fileCount,
+                fileHistoryLoaded ? "SUCCESS" : "PENDING", webUrl);
     }
 
     public CommitRow(long id,
@@ -49,8 +61,8 @@ public class CommitRow {
                      OffsetDateTime committedDate,
                      long fileCount,
                      String webUrl) {
-        this(id, documentId, documentName, commitSha, shortId, title, authorName, committedDate, fileCount, true,
-                webUrl);
+        this(id, documentId, documentName, commitSha, shortId, title, authorName, committedDate, fileCount,
+                "SUCCESS", webUrl);
     }
 
     public CommitRow(long id,
@@ -63,6 +75,21 @@ public class CommitRow {
                      OffsetDateTime committedDate,
                      long fileCount,
                      boolean fileHistoryLoaded,
+                     String webUrl) {
+        this(id, documentId, documentName, commitSha, shortId, title, authorName, committedDate, fileCount,
+                fileHistoryLoaded ? "SUCCESS" : "PENDING", webUrl);
+    }
+
+    public CommitRow(long id,
+                     long documentId,
+                     String documentName,
+                     String commitSha,
+                     String shortId,
+                     String title,
+                     String authorName,
+                     OffsetDateTime committedDate,
+                     long fileCount,
+                     String fileHistoryStatus,
                      String webUrl) {
         this.id = id;
         this.documentId = documentId;
@@ -73,7 +100,7 @@ public class CommitRow {
         this.authorName = authorName;
         this.committedDate = committedDate;
         this.fileCount = fileCount;
-        this.fileHistoryLoaded = fileHistoryLoaded;
+        this.fileHistoryStatus = fileHistoryStatus;
         this.webUrl = webUrl;
     }
 
@@ -114,7 +141,35 @@ public class CommitRow {
     }
 
     public boolean isFileHistoryLoaded() {
-        return fileHistoryLoaded;
+        return "SUCCESS".equalsIgnoreCase(fileHistoryStatus);
+    }
+
+    public boolean isFileHistoryFailed() {
+        return "FAILED".equalsIgnoreCase(fileHistoryStatus);
+    }
+
+    public String getFileHistoryStatus() {
+        return fileHistoryStatus;
+    }
+
+    public String getFileHistoryStatusCss() {
+        if (isFileHistoryFailed()) {
+            return "status-error";
+        }
+        if (isFileHistoryLoaded()) {
+            return "status-ok";
+        }
+        return "status-muted";
+    }
+
+    public String getFileHistoryDisplayText() {
+        if (isFileHistoryLoaded()) {
+            return Long.toString(fileCount);
+        }
+        if (isFileHistoryFailed()) {
+            return "error";
+        }
+        return "not loaded";
     }
 
     public String getWebUrl() {

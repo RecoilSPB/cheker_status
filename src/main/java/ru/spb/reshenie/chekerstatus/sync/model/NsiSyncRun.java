@@ -197,7 +197,7 @@ public class NsiSyncRun {
 
     public String getDisplayRunType() {
         if (SyncRunType.AUTO.equals(runType)) {
-            return "Автоматический";
+            return "Авто";
         }
         if (SyncRunType.MANUAL.equals(runType)) {
             return "Ручной";

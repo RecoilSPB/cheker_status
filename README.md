@@ -1,6 +1,6 @@
 # cheker-status
 
-Java 21 service for tracking an NSI dictionary version and loading dictionary rows into PostgreSQL.
+Java 21 service for tracking NSI dictionary versions, loading dictionary rows into PostgreSQL, and saving downloaded GitLab file versions into MinIO.
 
 ## What is stored
 
@@ -13,19 +13,28 @@ The schema is intentionally universal. API payloads are stored in `jsonb`, so ne
 - `nsi_record_history` stores row snapshots per dictionary version.
 - `nsi_document_git_link` stores parsed GitLab links from the `GIT_LINK` field.
 - `nsi_document_git_commit` stores commits found for each document link.
+- `nsi_document_git_commit_file` stores file-change metadata, checksums, and MinIO object keys for downloaded snapshots.
+- `nsi_document_git_file_state` stores the latest known file checksum/size and the MinIO object key for the current version.
 
 ## Run locally
 
 Start PostgreSQL:
 
 ```bash
-docker compose up -d postgres
+docker compose up -d postgres minio
 ```
 
 Run the full stack with external UI assets mounted into the container:
 
 ```bash
 APP_PASSWORD=change-me NSI_USER_KEY=<nsi-user-key> GITLAB_TOKEN=<gitlab-token> NSI_SYNC_ON_STARTUP=true docker compose up --build
+```
+
+MinIO is exposed locally on:
+
+```text
+API:     http://localhost:9000
+Console: http://localhost:9001
 ```
 
 Build and run:
@@ -97,6 +106,13 @@ GITLAB_MAX_FILES_PER_COMMIT=1000
 GITLAB_MAX_FILE_SIZE_BYTES=1048576
 GITLAB_RETRY_COUNT=3
 GITLAB_RETRY_DELAY_MS=1000
+MINIO_ENABLED=false
+MINIO_ENDPOINT=http://localhost:9000
+MINIO_ACCESS_KEY=
+MINIO_SECRET_KEY=
+MINIO_BUCKET=gitlab-file-history
+MINIO_OBJECT_PREFIX=gitlab
+MINIO_AUTO_CREATE_BUCKET=true
 ```
 
 ## Access Control
@@ -145,7 +161,9 @@ File history loading is controlled separately:
 
 - `GITLAB_FILE_HISTORY_ENABLED=false` keeps commit loading enabled but skips commit file history.
 - `GITLAB_FETCH_FILE_CONTENT=false` stores only file metadata and diff, without raw file content.
-- `GITLAB_MAX_FILE_SIZE_BYTES` limits raw content stored in PostgreSQL.
+- When `MINIO_ENABLED=true`, downloaded GitLab file versions are stored in MinIO and PostgreSQL keeps only metadata plus object keys.
+- When `MINIO_ENABLED=false`, raw text content is kept in PostgreSQL as before.
+- `GITLAB_MAX_FILE_SIZE_BYTES` limits raw content stored in PostgreSQL fallback mode.
 - `GITLAB_RETRY_COUNT` and `GITLAB_RETRY_DELAY_MS` control retry/backoff for GitLab `429` and `5xx` responses.
 
 ## Useful SQL

@@ -2,7 +2,10 @@ package ru.spb.reshenie.chekerstatus.web.controller;
 
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.dao.EmptyResultDataAccessException;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -22,8 +25,12 @@ import ru.spb.reshenie.chekerstatus.sync.model.SyncRunType;
 import ru.spb.reshenie.chekerstatus.sync.model.SyncErrorStage;
 import ru.spb.reshenie.chekerstatus.sync.model.SyncRunLogLevel;
 import ru.spb.reshenie.chekerstatus.security.service.SecurityAccessService;
+import ru.spb.reshenie.chekerstatus.web.model.DocumentDetails;
 import ru.spb.reshenie.chekerstatus.web.repository.UiRepository;
+import ru.spb.reshenie.chekerstatus.web.model.DownloadedFileVersion;
+import ru.spb.reshenie.chekerstatus.web.service.GitFileDiffViewService;
 
+import java.nio.charset.StandardCharsets;
 import java.time.DateTimeException;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -42,15 +49,18 @@ public class UiController {
     private final SyncRunRepository syncRunRepository;
     private final NsiSyncScheduler syncScheduler;
     private final SecurityAccessService securityAccessService;
+    private final GitFileDiffViewService gitFileDiffViewService;
 
     public UiController(UiRepository repository,
                         SyncRunRepository syncRunRepository,
                         NsiSyncScheduler syncScheduler,
-                        SecurityAccessService securityAccessService) {
+                        SecurityAccessService securityAccessService,
+                        GitFileDiffViewService gitFileDiffViewService) {
         this.repository = repository;
         this.syncRunRepository = syncRunRepository;
         this.syncScheduler = syncScheduler;
         this.securityAccessService = securityAccessService;
+        this.gitFileDiffViewService = gitFileDiffViewService;
     }
 
     @GetMapping("/")
@@ -243,10 +253,35 @@ public class UiController {
                            Model model) {
         try {
             model.addAttribute("active", "documents");
-            model.addAttribute("details", repository.documentDetails(id, selectedFileChangeId));
+            DocumentDetails details = repository.documentDetails(id, selectedFileChangeId);
+            model.addAttribute("details", details.withStructuredDiff(
+                    gitFileDiffViewService.loadStructuredDiff(id, details.getSelectedFileChange())
+            ));
             return "document";
         } catch (EmptyResultDataAccessException e) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found: " + id, e);
+        }
+    }
+
+    @GetMapping("/documents/{documentId}/file-changes/{fileChangeId}/download")
+    public ResponseEntity<ByteArrayResource> downloadFileVersion(@PathVariable("documentId") long documentId,
+                                                                 @PathVariable("fileChangeId") long fileChangeId,
+                                                                 @RequestParam("version") String version) {
+        try {
+            DownloadedFileVersion downloaded = gitFileDiffViewService.loadVersion(documentId, fileChangeId, version);
+            ByteArrayResource resource = new ByteArrayResource(downloaded.getContent());
+            ContentDisposition disposition = ContentDisposition.attachment()
+                    .filename(downloaded.getFileName(), StandardCharsets.UTF_8)
+                    .build();
+            return ResponseEntity.ok()
+                    .header("Content-Disposition", disposition.toString())
+                    .contentLength(downloaded.getContent().length)
+                    .header("Content-Type", downloaded.getContentType())
+                    .body(resource);
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage(), e);
+        } catch (EmptyResultDataAccessException e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "File version not found", e);
         }
     }
 

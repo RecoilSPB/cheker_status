@@ -1,7 +1,9 @@
 package ru.spb.reshenie.chekerstatus.web.repository;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
+import ru.spb.reshenie.chekerstatus.gitlab.diff.StructuredFileDiffSummary;
 import ru.spb.reshenie.chekerstatus.web.model.CommitRow;
 import ru.spb.reshenie.chekerstatus.web.model.DashboardStats;
 import ru.spb.reshenie.chekerstatus.web.model.DocumentDetails;
@@ -17,9 +19,11 @@ import java.util.List;
 public class UiRepository {
 
     private final JdbcTemplate jdbcTemplate;
+    private final ObjectMapper objectMapper;
 
-    public UiRepository(JdbcTemplate jdbcTemplate) {
+    public UiRepository(JdbcTemplate jdbcTemplate, ObjectMapper objectMapper) {
         this.jdbcTemplate = jdbcTemplate;
+        this.objectMapper = objectMapper;
     }
 
     public DashboardStats dashboardStats() {
@@ -96,13 +100,12 @@ public class UiRepository {
                 "SELECT c.id, l.id AS document_id, " +
                         "COALESCE(NULLIF(l.document_name, ''), l.document_oid, 'Документ без названия') AS document_name, " +
                         "c.commit_id, c.short_id, c.title, c.author_name, c.committed_date, c.web_url, " +
-                        "count(f.id) AS file_count, " +
-                        "EXISTS (SELECT 1 FROM nsi_document_git_commit_file fx WHERE fx.commit_id = c.id) AS file_history_loaded " +
+                        "c.file_history_status, count(f.id) AS file_count " +
                         "FROM nsi_document_git_commit c " +
                         "JOIN nsi_document_git_link l ON l.id = c.document_git_link_id " +
                         "LEFT JOIN nsi_document_git_commit_file f ON f.commit_id = c.id " +
                         "GROUP BY c.id, l.id, l.document_name, l.document_oid, c.commit_id, c.short_id, " +
-                        "c.title, c.author_name, c.committed_date, c.web_url " +
+                        "c.title, c.author_name, c.committed_date, c.web_url, c.file_history_status " +
                         "ORDER BY c.committed_date DESC NULLS LAST, c.id DESC " +
                         "LIMIT ?",
                 (rs, rowNum) -> new CommitRow(
@@ -115,7 +118,7 @@ public class UiRepository {
                         rs.getString("author_name"),
                         toOffsetDateTime(rs.getTimestamp("committed_date")),
                         rs.getLong("file_count"),
-                        rs.getBoolean("file_history_loaded"),
+                        rs.getString("file_history_status"),
                         rs.getString("web_url")
                 ),
                 limit
@@ -128,9 +131,13 @@ public class UiRepository {
                         "COALESCE(NULLIF(l.document_name, ''), l.document_oid, 'Документ без названия') AS document_name, " +
                         "f.commit_sha, f.parent_sha, f.change_type, f.old_path, f.new_path, f.file_path, " +
                         "f.content_fetch_status, f.content_fetch_error, f.content_before_size, f.content_after_size, " +
-                        "f.content_before_sha256, f.content_after_sha256, f.diff, f.committed_date " +
+                        "f.content_before_sha256, f.content_after_sha256, f.diff, f.committed_date, " +
+                        "d.diff_type, d.status AS structured_diff_status, d.format_family, " +
+                        "d.summary_json::text AS structured_diff_summary, d.artifact_object_key, " +
+                        "d.error AS structured_diff_error " +
                         "FROM nsi_document_git_commit_file f " +
                         "JOIN nsi_document_git_link l ON l.id = f.git_link_id " +
+                        "LEFT JOIN nsi_document_git_commit_file_diff d ON d.file_change_id = f.id " +
                         "ORDER BY f.committed_date DESC NULLS LAST, f.id DESC " +
                         "LIMIT ?",
                 (rs, rowNum) -> fileChangeRow(
@@ -149,6 +156,12 @@ public class UiRepository {
                         longOrNull(rs.getObject("content_after_size")),
                         rs.getString("content_before_sha256"),
                         rs.getString("content_after_sha256"),
+                        rs.getString("diff_type"),
+                        rs.getString("structured_diff_status"),
+                        rs.getString("format_family"),
+                        parseSummary(rs.getString("structured_diff_summary")),
+                        rs.getString("artifact_object_key") != null,
+                        rs.getString("structured_diff_error"),
                         rs.getString("diff"),
                         rs.getTimestamp("committed_date")),
                 limit
@@ -196,12 +209,12 @@ public class UiRepository {
     private List<CommitRow> commits(long documentId) {
         return jdbcTemplate.query(
                 "SELECT c.id, c.commit_id, c.short_id, c.title, c.author_name, c.committed_date, c.web_url, " +
-                        "count(f.id) AS file_count, " +
-                        "EXISTS (SELECT 1 FROM nsi_document_git_commit_file fx WHERE fx.commit_id = c.id) AS file_history_loaded " +
+                        "c.file_history_status, count(f.id) AS file_count " +
                         "FROM nsi_document_git_commit c " +
                         "LEFT JOIN nsi_document_git_commit_file f ON f.commit_id = c.id " +
                         "WHERE c.document_git_link_id = ? " +
-                        "GROUP BY c.id, c.commit_id, c.short_id, c.title, c.author_name, c.committed_date, c.web_url " +
+                        "GROUP BY c.id, c.commit_id, c.short_id, c.title, c.author_name, c.committed_date, c.web_url, " +
+                        "c.file_history_status " +
                         "ORDER BY c.committed_date DESC NULLS LAST, c.id DESC " +
                         "LIMIT 120",
                 (rs, rowNum) -> new CommitRow(
@@ -212,7 +225,7 @@ public class UiRepository {
                         rs.getString("author_name"),
                         toOffsetDateTime(rs.getTimestamp("committed_date")),
                         rs.getLong("file_count"),
-                        rs.getBoolean("file_history_loaded"),
+                        rs.getString("file_history_status"),
                         rs.getString("web_url")
                 ),
                 documentId
@@ -223,12 +236,18 @@ public class UiRepository {
         return jdbcTemplate.query(
                 "SELECT f.id, f.commit_sha, f.parent_sha, f.change_type, f.old_path, f.new_path, f.file_path, " +
                         "f.content_fetch_status, f.content_fetch_error, f.content_before_size, f.content_after_size, " +
-                        "f.content_before_sha256, f.content_after_sha256, f.diff, f.committed_date " +
+                        "f.content_before_sha256, f.content_after_sha256, f.diff, f.committed_date, " +
+                        "d.diff_type, d.status AS structured_diff_status, d.format_family, " +
+                        "d.summary_json::text AS structured_diff_summary, d.artifact_object_key, " +
+                        "d.error AS structured_diff_error " +
                         "FROM nsi_document_git_commit_file f " +
+                        "LEFT JOIN nsi_document_git_commit_file_diff d ON d.file_change_id = f.id " +
                         "WHERE f.git_link_id = ? " +
                         "ORDER BY f.committed_date DESC NULLS LAST, f.id DESC " +
                         "LIMIT 300",
                 (rs, rowNum) -> fileChangeRow(rs.getLong("id"),
+                        documentId,
+                        null,
                         rs.getString("commit_sha"),
                         rs.getString("parent_sha"),
                         rs.getString("change_type"),
@@ -241,6 +260,12 @@ public class UiRepository {
                         longOrNull(rs.getObject("content_after_size")),
                         rs.getString("content_before_sha256"),
                         rs.getString("content_after_sha256"),
+                        rs.getString("diff_type"),
+                        rs.getString("structured_diff_status"),
+                        rs.getString("format_family"),
+                        parseSummary(rs.getString("structured_diff_summary")),
+                        rs.getString("artifact_object_key") != null,
+                        rs.getString("structured_diff_error"),
                         rs.getString("diff"),
                         rs.getTimestamp("committed_date")),
                 documentId
@@ -251,9 +276,16 @@ public class UiRepository {
         return jdbcTemplate.queryForObject(
                 "SELECT f.id, f.commit_sha, f.parent_sha, f.change_type, f.old_path, f.new_path, f.file_path, " +
                         "f.content_fetch_status, f.content_fetch_error, f.content_before_size, f.content_after_size, " +
-                        "f.content_before_sha256, f.content_after_sha256, f.diff, f.committed_date " +
-                        "FROM nsi_document_git_commit_file f WHERE f.id = ? AND f.git_link_id = ?",
+                        "f.content_before_sha256, f.content_after_sha256, f.diff, f.committed_date, " +
+                        "d.diff_type, d.status AS structured_diff_status, d.format_family, " +
+                        "d.summary_json::text AS structured_diff_summary, d.artifact_object_key, " +
+                        "d.error AS structured_diff_error " +
+                        "FROM nsi_document_git_commit_file f " +
+                        "LEFT JOIN nsi_document_git_commit_file_diff d ON d.file_change_id = f.id " +
+                        "WHERE f.id = ? AND f.git_link_id = ?",
                 (rs, rowNum) -> fileChangeRow(rs.getLong("id"),
+                        documentId,
+                        null,
                         rs.getString("commit_sha"),
                         rs.getString("parent_sha"),
                         rs.getString("change_type"),
@@ -266,6 +298,12 @@ public class UiRepository {
                         longOrNull(rs.getObject("content_after_size")),
                         rs.getString("content_before_sha256"),
                         rs.getString("content_after_sha256"),
+                        rs.getString("diff_type"),
+                        rs.getString("structured_diff_status"),
+                        rs.getString("format_family"),
+                        parseSummary(rs.getString("structured_diff_summary")),
+                        rs.getString("artifact_object_key") != null,
+                        rs.getString("structured_diff_error"),
                         rs.getString("diff"),
                         rs.getTimestamp("committed_date")),
                 fileChangeId,
@@ -312,11 +350,18 @@ public class UiRepository {
                                                  Long contentAfterSize,
                                                  String contentBeforeSha256,
                                                  String contentAfterSha256,
+                                                 String diffType,
+                                                 String structuredDiffStatus,
+                                                 String formatFamily,
+                                                 StructuredFileDiffSummary summary,
+                                                 boolean artifactAvailable,
+                                                 String structuredDiffError,
                                                  String diff,
                                                  Timestamp committedDate) {
         return fileChangeRow(id, 0, null, commitSha, parentSha, changeType, oldPath, newPath, filePath,
                 contentFetchStatus, contentFetchError, contentBeforeSize, contentAfterSize, contentBeforeSha256,
-                contentAfterSha256, diff, committedDate);
+                contentAfterSha256, diffType, structuredDiffStatus, formatFamily, summary, artifactAvailable,
+                structuredDiffError, diff, committedDate);
     }
 
     private FileChangeRow fileChangeRow(long id,
@@ -334,6 +379,12 @@ public class UiRepository {
                                                  Long contentAfterSize,
                                                  String contentBeforeSha256,
                                                  String contentAfterSha256,
+                                                 String diffType,
+                                                 String structuredDiffStatus,
+                                                 String formatFamily,
+                                                 StructuredFileDiffSummary summary,
+                                                 boolean artifactAvailable,
+                                                 String structuredDiffError,
                                                  String diff,
                                                  Timestamp committedDate) {
         return new FileChangeRow(
@@ -352,6 +403,12 @@ public class UiRepository {
                 contentAfterSize,
                 contentBeforeSha256,
                 contentAfterSha256,
+                diffType,
+                structuredDiffStatus,
+                formatFamily,
+                summary,
+                artifactAvailable,
+                structuredDiffError,
                 diff,
                 toOffsetDateTime(committedDate)
         );
@@ -372,5 +429,16 @@ public class UiRepository {
             return ((Number) value).longValue();
         }
         return Long.valueOf(value.toString());
+    }
+
+    private StructuredFileDiffSummary parseSummary(String summaryJson) {
+        if (summaryJson == null || summaryJson.isBlank()) {
+            return null;
+        }
+        try {
+            return objectMapper.readValue(summaryJson, StructuredFileDiffSummary.class);
+        } catch (Exception e) {
+            return null;
+        }
     }
 }

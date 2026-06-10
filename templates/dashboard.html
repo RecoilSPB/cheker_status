@@ -124,7 +124,7 @@
                           th:if="${filter.runType != null}"
                           th:title="${'Тип: ' + filter.runType}">
                         <span>Тип</span>
-                        <strong th:text="${filter.runType.name() == 'AUTO' ? 'Автоматический' : (filter.runType.name() == 'MANUAL' ? 'Ручной' : (filter.runType.name() == 'WEBHOOK' ? 'Webhook' : 'Повтор'))}">Тип</strong>
+                        <strong th:text="${filter.runType.name() == 'AUTO' ? 'Авто' : (filter.runType.name() == 'MANUAL' ? 'Ручной' : (filter.runType.name() == 'WEBHOOK' ? 'Webhook' : 'Повтор'))}">Тип</strong>
                     </span>
                     <span class="filter-chip"
                           th:if="${!#strings.isEmpty(filter.dictionaryIdentifier)}"
@@ -184,7 +184,7 @@
                         <option value="">Все</option>
                         <option th:each="item : ${runTypes}"
                                 th:value="${item}"
-                                th:text="${item.name() == 'AUTO' ? 'Автоматический' : (item.name() == 'MANUAL' ? 'Ручной' : (item.name() == 'WEBHOOK' ? 'Webhook' : 'Повтор'))}"
+                                th:text="${item.name() == 'AUTO' ? 'Авто' : (item.name() == 'MANUAL' ? 'Ручной' : (item.name() == 'WEBHOOK' ? 'Webhook' : 'Повтор'))}"
                                 th:selected="${filter.runType == item}">AUTO</option>
                     </select>
                 </label>

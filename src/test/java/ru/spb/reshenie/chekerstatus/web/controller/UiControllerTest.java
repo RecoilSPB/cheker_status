@@ -1,7 +1,11 @@
 package ru.spb.reshenie.chekerstatus.web.controller;
 
 import ru.spb.reshenie.chekerstatus.sync.repository.SyncRunRepository;
+import ru.spb.reshenie.chekerstatus.gitlab.diff.StructuredDiffRow;
+import ru.spb.reshenie.chekerstatus.gitlab.diff.StructuredFileDiffArtifact;
+import ru.spb.reshenie.chekerstatus.gitlab.diff.StructuredFileDiffSummary;
 import ru.spb.reshenie.chekerstatus.web.repository.UiRepository;
+import ru.spb.reshenie.chekerstatus.web.service.GitFileDiffViewService;
 import ru.spb.reshenie.chekerstatus.web.service.UiTimeFormatters;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -30,7 +34,9 @@ import ru.spb.reshenie.chekerstatus.sync.model.SyncRunStatus;
 import ru.spb.reshenie.chekerstatus.sync.model.SyncRunType;
 import ru.spb.reshenie.chekerstatus.web.model.CommitRow;
 import ru.spb.reshenie.chekerstatus.web.model.DashboardStats;
+import ru.spb.reshenie.chekerstatus.web.model.DocumentDetails;
 import ru.spb.reshenie.chekerstatus.web.model.DocumentSummary;
+import ru.spb.reshenie.chekerstatus.web.model.DownloadedFileVersion;
 import ru.spb.reshenie.chekerstatus.web.model.FileChangeRow;
 import org.junit.jupiter.api.Test;
 
@@ -41,6 +47,7 @@ import java.util.Collections;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -70,6 +77,9 @@ class UiControllerTest {
 
     @MockBean(name = "securityAccessService")
     private SecurityAccessService securityAccessService;
+
+    @MockBean
+    private GitFileDiffViewService gitFileDiffViewService;
 
     @BeforeEach
     void setUp() {
@@ -132,6 +142,69 @@ class UiControllerTest {
                         OffsetDateTime.of(2026, 6, 3, 10, 0, 0, 0, ZoneOffset.UTC)
                 )
         ));
+        FileChangeRow selectedFile = new FileChangeRow(
+                12L,
+                10L,
+                "Test document",
+                "1234567890abcdef",
+                "abcdef1234567890",
+                "modified",
+                "old/path.xml",
+                "new/path.xml",
+                "new/path.xml",
+                "SUCCESS",
+                null,
+                100L,
+                120L,
+                "before",
+                "after",
+                "TEXT",
+                "SUCCESS",
+                "TEXT",
+                new StructuredFileDiffSummary(1, 1, 0, 1, 0, "MODIFIED", null),
+                true,
+                null,
+                "@@ -1 +1 @@",
+                OffsetDateTime.of(2026, 6, 3, 10, 0, 0, 0, ZoneOffset.UTC)
+        );
+        when(repository.documentDetails(10L, null)).thenReturn(new DocumentDetails(
+                new DocumentSummary(
+                        10L,
+                        "1.2.3",
+                        "Test document",
+                        "group/project",
+                        "main",
+                        "OK",
+                        null,
+                        OffsetDateTime.of(2026, 6, 3, 10, 0, 0, 0, ZoneOffset.UTC),
+                        7L,
+                        9L,
+                        0L
+                ),
+                Collections.singletonList(
+                        new CommitRow(
+                                11L,
+                                "1234567890abcdef",
+                                "1234567890",
+                                "Commit title",
+                                "Author",
+                                OffsetDateTime.of(2026, 6, 3, 10, 0, 0, 0, ZoneOffset.UTC),
+                                2L,
+                                true,
+                                "https://example.test/commit/123"
+                        )
+                ),
+                Collections.singletonList(selectedFile),
+                selectedFile
+        ));
+        when(gitFileDiffViewService.loadStructuredDiff(eq(10L), any(FileChangeRow.class)))
+                .thenReturn(new StructuredFileDiffArtifact(
+                        "TEXT",
+                        "TEXT",
+                        new StructuredFileDiffSummary(1, 1, 0, 1, 0, "MODIFIED", null),
+                        Collections.singletonList(new StructuredDiffRow(1, "before", 1, "after", "MODIFIED")),
+                        Collections.emptyList()
+                ));
         when(syncRunRepository.dashboardSummary()).thenReturn(new DashboardSummary(
                 "IDLE",
                 null,
@@ -383,6 +456,101 @@ class UiControllerTest {
         assertThat(detailsHtml).contains("href=\"/dashboard/sync-runs/78/logs\"");
         assertThat(detailsHtml).contains("Журнал действий");
         assertThat(detailsHtml).contains("100%");
+    }
+
+    @Test
+    @WithMockUser(authorities = SecurityPermissions.DOCUMENTS_VIEW)
+    void documentPageRendersStructuredDiffTabs() throws Exception {
+        String html = mockMvc.perform(get("/documents/10"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString(StandardCharsets.UTF_8);
+
+        assertThat(html).contains("Structured Diff");
+        assertThat(html).contains("GitLab Diff");
+        assertThat(html).contains("Downloads");
+        assertThat(html).contains("Download before");
+        assertThat(html).contains("Download after");
+    }
+
+    @Test
+    @WithMockUser(authorities = SecurityPermissions.DOCUMENTS_VIEW)
+    void documentPageShowsZeroFilesForSuccessfulCommitWithoutFileRows() throws Exception {
+        CommitRow commit = new CommitRow(
+                22L,
+                "3c45fb5b252ec0d0c47cb06a7fd237b022cb80c3",
+                "3c45fb5b",
+                "Обновление документации СЭМД",
+                "Автор",
+                OffsetDateTime.of(2026, 5, 27, 14, 29, 23, 0, ZoneOffset.UTC),
+                0L,
+                "SUCCESS",
+                "https://example.test/commit/3c45fb5b"
+        );
+        FileChangeRow selectedFile = new FileChangeRow(
+                12L,
+                10L,
+                "Test document",
+                "1234567890abcdef",
+                "abcdef1234567890",
+                "modified",
+                "old/path.xml",
+                "new/path.xml",
+                "new/path.xml",
+                "SUCCESS",
+                null,
+                100L,
+                120L,
+                "before",
+                "after",
+                "@@ -1 +1 @@",
+                OffsetDateTime.of(2026, 6, 3, 10, 0, 0, 0, ZoneOffset.UTC)
+        );
+        when(repository.documentDetails(10L, null)).thenReturn(new DocumentDetails(
+                new DocumentSummary(
+                        10L,
+                        "1.2.3",
+                        "Test document",
+                        "group/project",
+                        "main",
+                        "OK",
+                        null,
+                        OffsetDateTime.of(2026, 6, 3, 10, 0, 0, 0, ZoneOffset.UTC),
+                        7L,
+                        9L,
+                        0L
+                ),
+                Collections.singletonList(commit),
+                Collections.singletonList(selectedFile),
+                selectedFile
+        ));
+
+        String html = mockMvc.perform(get("/documents/10"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString(StandardCharsets.UTF_8);
+
+        assertThat(html).contains(">0</span>");
+        assertThat(html).doesNotContain("not loaded");
+    }
+
+    @Test
+    @WithMockUser(authorities = SecurityPermissions.DOCUMENTS_VIEW)
+    void downloadEndpointReturnsRequestedVersion() throws Exception {
+        when(gitFileDiffViewService.loadVersion(10L, 12L, "after"))
+                .thenReturn(new DownloadedFileVersion("file.xml", "application/xml", "payload".getBytes(StandardCharsets.UTF_8)));
+
+        mockMvc.perform(get("/documents/10/file-changes/12/download").param("version", "after"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(authorities = SecurityPermissions.FILE_CHANGES_VIEW)
+    void downloadEndpointRequiresDocumentsPermission() throws Exception {
+        mockMvc.perform(get("/documents/10/file-changes/12/download").param("version", "after"))
+                .andExpect(status().isForbidden());
     }
 
     private NsiSyncRun syncRun(long id,

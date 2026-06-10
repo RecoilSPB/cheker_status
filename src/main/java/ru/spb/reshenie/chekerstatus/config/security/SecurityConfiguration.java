@@ -34,6 +34,7 @@ public class SecurityConfiguration {
                         .requestMatchers("/css/**", "/js/**", "/error").permitAll()
                         .requestMatchers(POST, "/dashboard/sync-runs").hasAuthority(SecurityPermissions.DASHBOARD_SYNC_MANAGE)
                         .requestMatchers(POST, "/api/dashboard/sync-runs").hasAuthority(SecurityPermissions.DASHBOARD_SYNC_MANAGE)
+                        .requestMatchers(POST, "/api/file-diff/backfill").hasAuthority(SecurityPermissions.DASHBOARD_SYNC_MANAGE)
                         .requestMatchers("/dashboard/**", "/api/dashboard/**").hasAuthority(SecurityPermissions.DASHBOARD_VIEW)
                         .requestMatchers("/documents/**").hasAuthority(SecurityPermissions.DOCUMENTS_VIEW)
                         .requestMatchers("/commits/**").hasAuthority(SecurityPermissions.COMMITS_VIEW)

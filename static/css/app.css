@@ -650,13 +650,35 @@ button.button:disabled {
     background: #fbfcfe;
 }
 
-.tab {
-    padding: 8px 12px;
+.tab-button {
+    border: 1px solid transparent;
+    border-bottom: none;
+    padding: 9px 12px;
     border-radius: 8px 8px 0 0;
-    background: var(--blue-soft);
-    color: #174ea6;
+    background: var(--surface-2);
+    color: var(--muted);
+    font: inherit;
     font-weight: 700;
     font-size: 13px;
+    cursor: pointer;
+}
+
+.tab-button.is-active {
+    background: var(--surface);
+    color: var(--blue);
+    border-color: var(--line);
+}
+
+.tab-panels {
+    border-top: 1px solid var(--line);
+}
+
+.tab-panel {
+    display: none;
+}
+
+.tab-panel.is-active {
+    display: block;
 }
 
 .side-panel {
@@ -697,6 +719,67 @@ button.button:disabled {
     font-size: 12px;
     line-height: 1.5;
     white-space: pre-wrap;
+}
+
+.diff-summary-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 14px 16px 0;
+}
+
+.summary-chip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 4px 10px;
+    background: #fbfcfe;
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.structured-diff-table td,
+.metadata-diff-table td {
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
+.diff-col-number {
+    width: 56px;
+}
+
+.diff-cell-text {
+    margin: 0;
+    padding: 10px 0;
+    font: 12px/1.5 var(--mono);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.diff-row-unchanged td {
+    background: #ffffff;
+}
+
+.diff-row-added td {
+    background: var(--green-soft);
+}
+
+.diff-row-removed td {
+    background: var(--red-soft);
+}
+
+.diff-row-modified td {
+    background: #fff7e8;
+}
+
+.download-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 16px;
 }
 
 .empty {

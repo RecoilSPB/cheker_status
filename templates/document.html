@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title th:text="${details.document.documentName} + ' - NSI Git Monitor'">Документ</title>
+    <title th:text="${details.document.documentName} + ' - NSI Git Monitor'">Document</title>
     <link rel="stylesheet" th:href="@{/css/app.css}">
 </head>
 <body>
@@ -12,12 +12,12 @@
     <main class="main">
         <div class="topbar">
             <th:block th:replace="~{fragments/common :: mobileToggle}"></th:block>
-            <a class="button secondary" th:href="@{/documents}">К списку</a>
+            <a class="button secondary" th:href="@{/documents}">Back to documents</a>
         </div>
 
         <section class="document-hero">
             <div>
-                <h1 class="page-title" th:text="${details.document.documentName}">Название документа</h1>
+                <h1 class="page-title" th:text="${details.document.documentName}">Document</h1>
                 <div class="technical" th:text="'OID ' + ${details.document.documentOid}">OID</div>
                 <div class="muted mono" th:text="${details.document.projectPath} + ' / ' + ${details.document.treeRef}">project/ref</div>
             </div>
@@ -29,18 +29,16 @@
         <section class="detail-grid">
             <div class="panel">
                 <div class="panel-header">
-                    <div class="panel-title">Коммиты документа</div>
-                    <div class="muted">
-                        <span th:text="${details.document.commitCount}">0</span> коммитов
-                    </div>
+                    <div class="panel-title">Commits</div>
+                    <div class="muted"><span th:text="${details.document.commitCount}">0</span> total</div>
                 </div>
                 <table class="table">
                     <thead>
                     <tr>
                         <th>Commit</th>
-                        <th>Автор</th>
-                        <th>Файлы</th>
-                        <th>Дата</th>
+                        <th>Author</th>
+                        <th>Files</th>
+                        <th>Date</th>
                         <th></th>
                     </tr>
                     </thead>
@@ -53,7 +51,13 @@
                         <td th:text="${commit.authorName ?: ''}">author</td>
                         <td>
                             <span th:if="${commit.fileHistoryLoaded}" th:text="${commit.fileCount}">0</span>
-                            <span class="muted" th:unless="${commit.fileHistoryLoaded}">не загружено</span>
+                            <span class="status"
+                                  th:if="${commit.fileHistoryFailed}"
+                                  th:classappend="${commit.fileHistoryStatusCss}"
+                                  th:text="${commit.fileHistoryDisplayText}">error</span>
+                            <span class="muted"
+                                  th:unless="${commit.fileHistoryLoaded or commit.fileHistoryFailed}"
+                                  th:text="${commit.fileHistoryDisplayText}">not loaded</span>
                         </td>
                         <td class="muted" th:text="${commit.committedDate ?: ''}">date</td>
                         <td>
@@ -62,22 +66,21 @@
                     </tr>
                     </tbody>
                 </table>
-                <div class="empty" th:if="${#lists.isEmpty(details.commits)}">Коммиты пока не загружены</div>
+                <div class="empty" th:if="${#lists.isEmpty(details.commits)}">Commits are not loaded yet</div>
 
                 <div class="section-header">
-                    <div class="panel-title">История файлов</div>
-                    <div class="muted">
-                        <span th:text="${details.document.fileChangeCount}">0</span> изменений
-                    </div>
+                    <div class="panel-title">File History</div>
+                    <div class="muted"><span th:text="${details.document.fileChangeCount}">0</span> changes</div>
                 </div>
                 <table class="table">
                     <thead>
                     <tr>
-                        <th>Файл</th>
-                        <th>Тип</th>
+                        <th>File</th>
+                        <th>Change</th>
                         <th>Commit</th>
                         <th>Content</th>
-                        <th>Дата</th>
+                        <th>Structured Diff</th>
+                        <th>Date</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -91,20 +94,26 @@
                         <td><span class="change" th:classappend="${file.changeTypeCss}" th:text="${file.changeType}">modified</span></td>
                         <td class="mono" th:text="${file.shortSha}">sha</td>
                         <td><span class="status" th:classappend="${file.statusCss}" th:text="${file.contentFetchStatus}">SUCCESS</span></td>
+                        <td>
+                            <span class="status"
+                                  th:classappend="${file.structuredDiffStatusCss}"
+                                  th:text="${file.semanticStatus ?: 'MISSING'}">SUCCESS</span>
+                        </td>
                         <td class="muted" th:text="${file.committedDate ?: ''}">date</td>
                     </tr>
                     </tbody>
                 </table>
-                <div class="empty" th:if="${#lists.isEmpty(details.fileChanges)}">История файлов не загружена. Проверьте GitLab token и запустите синхронизацию.</div>
+                <div class="empty" th:if="${#lists.isEmpty(details.fileChanges)}">File history is not loaded yet</div>
             </div>
 
             <aside class="panel side-panel">
                 <div class="panel-header">
                     <div>
-                        <div class="panel-title">Детали изменения</div>
+                        <div class="panel-title">Change Details</div>
                         <div class="muted" th:if="${details.selectedFileChange != null}" th:text="${details.selectedFileChange.filePath}">file</div>
                     </div>
                 </div>
+
                 <div th:if="${details.selectedFileChange != null}">
                     <div class="meta-list">
                         <div>
@@ -113,36 +122,169 @@
                         </div>
                         <div>
                             <div class="meta-label">Parent SHA</div>
-                            <div class="meta-value mono" th:text="${details.selectedFileChange.parentSha ?: 'нет'}">parent</div>
+                            <div class="meta-value mono" th:text="${details.selectedFileChange.parentSha ?: 'none'}">parent</div>
                         </div>
                         <div>
-                            <div class="meta-label">Путь до изменения</div>
-                            <div class="meta-value mono" th:text="${details.selectedFileChange.oldPath}">old</div>
+                            <div class="meta-label">Old path</div>
+                            <div class="meta-value mono" th:text="${details.selectedFileChange.oldPath ?: '-'}">old</div>
                         </div>
                         <div>
-                            <div class="meta-label">Путь после изменения</div>
-                            <div class="meta-value mono" th:text="${details.selectedFileChange.newPath}">new</div>
+                            <div class="meta-label">New path</div>
+                            <div class="meta-value mono" th:text="${details.selectedFileChange.newPath ?: '-'}">new</div>
                         </div>
                         <div>
-                            <div class="meta-label">Размер before / after</div>
+                            <div class="meta-label">Before / After size</div>
                             <div class="meta-value">
                                 <span th:text="${details.selectedFileChange.contentBeforeSize ?: '-'}">-</span>
                                 <span> / </span>
                                 <span th:text="${details.selectedFileChange.contentAfterSize ?: '-'}">-</span>
                             </div>
                         </div>
+                        <div>
+                            <div class="meta-label">Structured diff status</div>
+                            <div class="meta-value">
+                                <span class="status"
+                                      th:classappend="${details.selectedFileChange.structuredDiffStatusCss}"
+                                      th:text="${details.selectedFileChange.semanticStatus ?: 'MISSING'}">SUCCESS</span>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="meta-label">Diff type / family</div>
+                            <div class="meta-value">
+                                <span th:text="${details.selectedFileChange.diffType ?: '-'}">-</span>
+                                <span> / </span>
+                                <span th:text="${details.selectedFileChange.formatFamily ?: '-'}">-</span>
+                            </div>
+                        </div>
+                        <div th:if="${details.selectedFileChange.summaryText != null}">
+                            <div class="meta-label">Summary</div>
+                            <div class="meta-value" th:text="${details.selectedFileChange.summaryText}">summary</div>
+                        </div>
+                        <div th:if="${details.selectedFileChange.structuredDiffError != null}">
+                            <div class="meta-label">Structured diff error</div>
+                            <div class="meta-value" th:text="${details.selectedFileChange.structuredDiffError}">error</div>
+                        </div>
                         <div th:if="${details.selectedFileChange.contentFetchError != null}">
-                            <div class="meta-label">Ошибка загрузки content</div>
+                            <div class="meta-label">Content fetch error</div>
                             <div class="meta-value" th:text="${details.selectedFileChange.contentFetchError}">error</div>
                         </div>
                     </div>
-                    <pre class="diff" th:text="${details.selectedFileChange.diff ?: 'Diff не сохранен'}">diff</pre>
+
+                    <div class="tabs" data-tab-buttons>
+                        <button class="tab-button is-active" type="button" data-tab-target="structured">Structured Diff</button>
+                        <button class="tab-button" type="button" data-tab-target="gitlab">GitLab Diff</button>
+                        <button class="tab-button" type="button" data-tab-target="downloads">Downloads</button>
+                    </div>
+
+                    <div class="tab-panels">
+                        <section class="tab-panel is-active" data-tab-panel="structured">
+                            <div class="diff-summary-bar" th:if="${details.structuredDiff != null and details.structuredDiff.summary != null}">
+                                <span class="summary-chip" th:text="${details.structuredDiff.diffType}">TEXT</span>
+                                <span class="summary-chip" th:text="${details.structuredDiff.formatFamily}">TEXT</span>
+                                <span class="summary-chip" th:text="${details.structuredDiff.summary.changeStatus}">MODIFIED</span>
+                                <span class="summary-chip" th:text="${details.structuredDiff.summary.asText()}">summary</span>
+                            </div>
+
+                            <div class="empty"
+                                 th:if="${details.structuredDiff == null and details.selectedFileChange.semanticStatus != 'FAILED'}">
+                                Structured diff is not available yet
+                            </div>
+                            <div class="empty"
+                                 th:if="${details.selectedFileChange.semanticStatus == 'FAILED'}"
+                                 th:text="${details.selectedFileChange.structuredDiffError ?: 'Structured diff build failed'}">
+                                structured diff error
+                            </div>
+
+                            <div th:if="${details.structuredDiff != null and details.structuredDiff.hasRows()}">
+                                <div class="table-scroll">
+                                    <table class="table structured-diff-table">
+                                        <thead>
+                                        <tr>
+                                            <th class="diff-col-number">Before</th>
+                                            <th>Before content</th>
+                                            <th class="diff-col-number">After</th>
+                                            <th>After content</th>
+                                        </tr>
+                                        </thead>
+                                        <tbody>
+                                        <tr th:each="row : ${details.structuredDiff.rows}" th:class="${row.statusCss}">
+                                            <td class="mono diff-col-number" th:text="${row.beforeLineNumber ?: ''}">1</td>
+                                            <td><pre class="diff-cell-text" th:text="${row.beforeText ?: ''}">before</pre></td>
+                                            <td class="mono diff-col-number" th:text="${row.afterLineNumber ?: ''}">1</td>
+                                            <td><pre class="diff-cell-text" th:text="${row.afterText ?: ''}">after</pre></td>
+                                        </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div th:if="${details.structuredDiff != null and !details.structuredDiff.hasRows() and details.structuredDiff.hasMetadataEntries()}">
+                                <div class="table-scroll">
+                                    <table class="table metadata-diff-table">
+                                        <thead>
+                                        <tr>
+                                            <th>Field</th>
+                                            <th>Before</th>
+                                            <th>After</th>
+                                        </tr>
+                                        </thead>
+                                        <tbody>
+                                        <tr th:each="entry : ${details.structuredDiff.metadataEntries}" th:class="${entry.statusCss}">
+                                            <td th:text="${entry.label}">Size</td>
+                                            <td class="mono" th:text="${entry.beforeValue ?: '-'}">-</td>
+                                            <td class="mono" th:text="${entry.afterValue ?: '-'}">-</td>
+                                        </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </section>
+
+                        <section class="tab-panel" data-tab-panel="gitlab">
+                            <pre class="diff" th:text="${details.selectedFileChange.diff ?: 'GitLab diff is not stored'}">diff</pre>
+                        </section>
+
+                        <section class="tab-panel" data-tab-panel="downloads">
+                            <div class="download-grid">
+                                <a class="button"
+                                   th:if="${details.selectedFileChange.beforeDownloadUrl != null}"
+                                   th:href="${details.selectedFileChange.beforeDownloadUrl}">Download before</a>
+                                <a class="button"
+                                   th:if="${details.selectedFileChange.afterDownloadUrl != null}"
+                                   th:href="${details.selectedFileChange.afterDownloadUrl}">Download after</a>
+                            </div>
+                            <div class="empty"
+                                 th:if="${details.selectedFileChange.beforeDownloadUrl == null and details.selectedFileChange.afterDownloadUrl == null}">
+                                Raw file versions are not available
+                            </div>
+                        </section>
+                    </div>
                 </div>
-                <div class="empty" th:if="${details.selectedFileChange == null and #lists.isEmpty(details.fileChanges)}">История файлов не загружена</div>
-                <div class="empty" th:if="${details.selectedFileChange == null and !#lists.isEmpty(details.fileChanges)}">Выберите изменение файла</div>
+
+                <div class="empty" th:if="${details.selectedFileChange == null and #lists.isEmpty(details.fileChanges)}">File history is not loaded</div>
+                <div class="empty" th:if="${details.selectedFileChange == null and !#lists.isEmpty(details.fileChanges)}">Select a file change to inspect details</div>
             </aside>
         </section>
     </main>
 </div>
+<script>
+    document.querySelectorAll('[data-tab-buttons]').forEach(function (buttons) {
+        var panelRoot = buttons.parentElement.querySelector('.tab-panels');
+        if (!panelRoot) {
+            return;
+        }
+        buttons.querySelectorAll('[data-tab-target]').forEach(function (button) {
+            button.addEventListener('click', function () {
+                var target = button.getAttribute('data-tab-target');
+                buttons.querySelectorAll('[data-tab-target]').forEach(function (item) {
+                    item.classList.toggle('is-active', item === button);
+                });
+                panelRoot.querySelectorAll('[data-tab-panel]').forEach(function (panel) {
+                    panel.classList.toggle('is-active', panel.getAttribute('data-tab-panel') === target);
+                });
+            });
+        });
+    });
+</script>
 </body>
 </html>
